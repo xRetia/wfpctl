@@ -1,0 +1,9 @@
+# build artifacts
+wfpctl-windows-amd64.exe
+wfpctl.exe
+*.exe
+
+# reference material / local extras
+Downloads.zip
+probe/
+dist/
