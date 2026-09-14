@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "wfpctl-gui"
+version = "1.0.0"
+description = "GUI for wfpctl — Windows Filtering Platform control CLI"
+requires-python = ">=3.10"
+dependencies = ["PyQt6>=6.5"]
+
+[project.scripts]
+wfpctl-gui = "wfpctl_gui.__main__:main"

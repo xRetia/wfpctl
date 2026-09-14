@@ -9,16 +9,21 @@ Copyright (c) 2026 xRetia Labs — <https://github.com/xRetia/wfpctl>
 
 - Pure user-mode: talks to `fwpuclnt.dll` directly (no kernel driver, no service).
 - `add` / `delete` / `list` / `sublayers` sub-commands.
+- Builds for **amd64** and **386** (x64 and x86 Windows).
+- Optional **PyQt6 GUI** (see GUI section below).
 - Persistent provider + sub-layer and persistent filters (survive reboot).
 
 ## Build
 
-Requires Go 1.21+ on Windows:
+Requires Go 1.21+ on Windows. The `VERSION` file at the project root is the single source of truth for
+version numbers; the build injects it via `-ldflags`:
 
 ```powershell
-go build -o wfpctl.exe .
-# or, for a release build
-go build -o wfpctl-windows-amd64.exe .
+# amd64
+$env:GOARCH='amd64'; go build -trimpath -ldflags "-s -w -X main.versionStr=$(Get-Content VERSION)" -o wfpctl64.exe .
+
+# 386
+$env:GOARCH='386'; go build -trimpath -ldflags "-s -w -X main.versionStr=$(Get-Content VERSION)" -o wfpctl32.exe .
 ```
 
 Run tests / vet:
@@ -112,6 +117,22 @@ wfpctl.exe delete -key 203AB74A-63CE-4A3B-BF4C-8B7AE6AC21E4
 
 `weight` is the filter's weight inside its sub-layer (`18446744073709551615` = `math.MaxUint64` for `highest`).
 
+Add `-json` for structured output (consumed by the GUI):
+
+```json
+[
+  {
+    "id": 67939,
+    "name": "subnet-test",
+    "direction": "in",
+    "action": "allow",
+    "layer": "ALE_AUTH_RECV_ACCEPT_V4",
+    "weight": "18446744073709551615",
+    "key": "0335BED5-05BD-4CAD-8C30-1229AC1E4BE3"
+  }
+]
+```
+
 ### Inspecting sub-layers
 
 `sublayers` enumerates every sub-layer sorted descending by weight, so you can see who holds the high
@@ -175,12 +196,34 @@ The next `add` recreates provider + sub-layer automatically (re-picking the high
 still bound to it (regardless of owner), then deletes the sub-layer itself. If the GUID matches wfpctl's own
 sub-layer, only the sub-layer and its filters are removed (the provider stays).
 
+## GUI
+
+An optional PyQt6 GUI is available in `gui/`. It calls the CLI backend and provides:
+
+- Toolbar with icon buttons: block / allow / delete / refresh / sublayers / uninstall
+- Rule table with right-click context menu (delete, copy GUID, refresh)
+- Add-rule dialog with fields for name, target, port, protocol, direction, action, priority
+- Sublayer viewer with delete support
+- Status bar with rule count and operation feedback
+
+Build from `gui/`:
+
+```powershell
+pip install PyQt6 pyinstaller
+pyinstaller --onefile --windowed --name wfpctl-gui gui/wfpctl_gui/__main__.py
+```
+
+The GUI auto-elevates to Administrator on launch. It looks for `wfpctl.exe` (or `wfpctl64.exe` /
+`wfpctl32.exe`) in the same directory as the GUI executable, then falls back to `PATH`.
+
 ## How it works
 
 - All WFP entry points are bound at runtime with `golang.org/x/sys/windows` `LazyDLL("fwpuclnt.dll")`
   (`FwpmEngineOpen0`, `FwpmProviderAdd0`, `FwpmSubLayerAdd0`, `FwpmSubLayerGetByKey0`,
   `FwpmSubLayerCreateEnumHandle0`/`FwpmSubLayerEnum0`, `FwpmFilterAdd0`, `FwpmFilterDeleteByKey0`,
   `FwpmFilterCreateEnumHandle0`/`FwpmFilterEnum0`/`FwpmFilterDestroyEnumHandle0`).
+- Builds natively for both **amd64** and **386**. The `filter` struct layout is verified at test time for each
+  architecture (amd64: 200 bytes; 386: 144 bytes).
 - Enumerations use the two-step `FwpmFilterCreateEnumHandle0`/`FwpmFilterEnum0` pattern (a NULL template
   enumerates everything; results are a pointer-array `FWPM_FILTER0 **`, so entries are dereferenced twice).
 - Address conditions: IPv4 uses `FWP_V4_ADDR_MASK{addr, mask}` where `mask` is the **netmask bit pattern in

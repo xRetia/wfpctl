@@ -1,9 +1,13 @@
 # build artifacts
-wfpctl-windows-amd64.exe
-wfpctl.exe
 *.exe
+*.zip
+dist/
+build/
+*.spec
+
+# python
+__pycache__/
 
 # reference material / local extras
 Downloads.zip
 probe/
-dist/

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (overrides tag name, e.g. 1.0.0)"
+        description: "Release version (overrides tag name)"
         required: false
         default: ""
 
@@ -15,21 +15,141 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and publish release
+  test:
+    name: Test
     runs-on: windows-latest
-    strategy:
-      matrix:
-        goarch: [amd64, 386, arm64]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.21.x"
           cache: true
+
+      - name: Test & Vet
+        shell: bash
+        working-directory: tools/wfpctl
+        run: |
+          go test -count=1 ./...
+          go vet ./...
+
+  build-cli:
+    name: CLI ${{ matrix.goarch }}
+    needs: test
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            out: wfpctl64.exe
+          - goarch: 386
+            out: wfpctl32.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21.x"
+          cache: true
+
+      - name: Build
+        shell: bash
+        working-directory: tools/wfpctl
+        env:
+          GOOS: windows
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          VERSION=$(cat VERSION 2>/dev/null || echo "1.0.0")
+          go build -trimpath -ldflags "-s -w -X main.versionStr=$VERSION" -o "${{ matrix.out }}" .
+
+      - name: Verify layout (${{ matrix.goarch }})
+        shell: bash
+        working-directory: tools/wfpctl
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        run: go test -count=1 -run TestFWPMFilter0LayoutMatchesNative ./...
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/upload"
+          cp "tools/wfpctl/${{ matrix.out }}" "$GITHUB_WORKSPACE/upload/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.goarch }}
+          path: upload/
+          if-no-files-found: error
+
+  build-gui:
+    name: GUI ${{ matrix.arch }}
+    needs: build-cli
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            python-arch: x64
+            cli-artifact: cli-amd64
+            cli-exe: wfpctl64.exe
+            gui-zip: wfpctl-gui-x64.zip
+          - arch: x86
+            python-arch: x86
+            cli-artifact: cli-386
+            cli-exe: wfpctl32.exe
+            gui-zip: wfpctl-gui-x32.zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.cli-artifact }}
+          path: cli-exe/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.python-arch }}
+          cache: pip
+
+      - name: Install
+        run: pip install PyQt6 pyinstaller
+
+      - name: PyInstaller
+        shell: bash
+        working-directory: tools/wfpctl
+        run: |
+          pyinstaller --onefile --windowed --noconfirm \
+            --name wfpctl-gui \
+            --clean \
+            gui/wfpctl_gui/__main__.py
+
+      - name: Bundle
+        shell: bash
+        run: |
+          mkdir -p bundle
+          cp cli-exe/${{ matrix.cli-exe }} bundle/wfpctl.exe
+          cp tools/wfpctl/dist/wfpctl-gui.exe bundle/
+          python -c "
+          import zipfile, os, pathlib
+          zf = pathlib.Path('${{ matrix.gui-zip }}')
+          with zipfile.ZipFile(zf, 'w', zipfile.ZIP_DEFLATED) as z:
+              for f in sorted(pathlib.Path('bundle').iterdir()):
+                  z.write(f, f.name)
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gui-${{ matrix.arch }}
+          path: ${{ matrix.gui-zip }}
+
+  release:
+    name: Publish release
+    needs: [build-cli, build-gui]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Resolve version
         id: ver
@@ -43,46 +163,21 @@ jobs:
             echo "ver=dev" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Working directory
-        shell: bash
-        run: |
-          cd tools/wfpctl 2>/dev/null && echo "WFPCTL_DIR=tools/wfpctl" >> "$GITHUB_ENV" || echo "WFPCTL_DIR=." >> "$GITHUB_ENV"
-          echo "project dir: ${WFPCTL_DIR}"
-
-      - name: Test
-        shell: bash
-        working-directory: ${{ env.WFPCTL_DIR }}
-        run: go test ./...
-
-      - name: Vet
-        shell: bash
-        working-directory: ${{ env.WFPCTL_DIR }}
-        run: go vet ./...
-
-      - name: Build
-        shell: bash
-        working-directory: ${{ env.WFPCTL_DIR }}
-        env:
-          GOOS: windows
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: |
-          mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.versionStr=${{ steps.ver.outputs.ver }}" -o "dist/wfpctl-windows-${{ matrix.goarch }}.exe" .
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
 
       - name: Checksums
-        shell: bash
-        working-directory: ${{ env.WFPCTL_DIR }}
         run: |
-          cd dist
-          for f in *.exe; do
-            sha256sum "$f" > "$f.sha256"
+          cd artifacts
+          for f in wfpctl*.exe wfpctl-gui-*.zip; do
+            [ -f "$f" ] && sha256sum "$f" > "$f.sha256"
           done
           ls -la
 
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.WFPCTL_DIR }}/dist/*
+          files: artifacts/*
           generate_release_notes: true
-          fail_on_unmatched_files: true

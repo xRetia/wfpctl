@@ -42,37 +42,60 @@ func TestFWPMFilter0LayoutMatchesNative(t *testing.T) {
 	}
 	// The first ten members of FWPM_FILTER0 are the caller-supplied ones
 	// (filterKey..action); their offsets must match the native layout.
+	// Values differ between x64 (pointers = 8 bytes) and x86 (pointers = 4 bytes).
 	var f filter
+	var wantSize uintptr
+	var off = map[string]uintptr{}
+	if unsafe.Sizeof(uintptr(0)) == 8 {
+		wantSize = 200
+		off = map[string]uintptr{
+			"FilterKey": 0, "Display": 16, "Flags": 32, "ProviderKey": 40,
+			"ProviderData": 48, "LayerKey": 64, "SublayerKey": 80, "Weight": 96,
+			"NumConditions": 112, "Conditions": 120, "Action": 128,
+			"Action.Type": 0, "Action.CalloutKey": 4, "RawContext": 148,
+			"Reserved": 168, "FilterID": 176, "EffectiveWeight": 184,
+		}
+	} else {
+		// 32-bit (386): pointers are 4 bytes, uintptr align = 4.
+		wantSize = 144
+		off = map[string]uintptr{
+			"FilterKey": 0, "Display": 16, "Flags": 24, "ProviderKey": 28,
+			"ProviderData": 32, "LayerKey": 40, "SublayerKey": 56, "Weight": 72,
+			"NumConditions": 80, "Conditions": 84, "Action": 88,
+			"Action.Type": 0, "Action.CalloutKey": 4, "RawContext": 108,
+			"Reserved": 124, "FilterID": 128, "EffectiveWeight": 136,
+		}
+	}
 	checks := []struct {
 		name string
 		off  uintptr
-		want uintptr
 	}{
-		{"FilterKey", unsafe.Offsetof(f.FilterKey), 0},
-		{"Display", unsafe.Offsetof(f.Display), 16},
-		{"Flags", unsafe.Offsetof(f.Flags), 32},
-		{"ProviderKey", unsafe.Offsetof(f.ProviderKey), 40},
-		{"ProviderData", unsafe.Offsetof(f.ProviderData), 48},
-		{"LayerKey", unsafe.Offsetof(f.LayerKey), 64},
-		{"SublayerKey", unsafe.Offsetof(f.SublayerKey), 80},
-		{"Weight", unsafe.Offsetof(f.Weight), 96},
-		{"NumConditions", unsafe.Offsetof(f.NumConditions), 112},
-		{"Conditions", unsafe.Offsetof(f.Conditions), 120},
-		{"Action", unsafe.Offsetof(f.Action), 128},
-		{"Action.Type", unsafe.Offsetof(f.Action.Type), 0},
-		{"Action.CalloutKey", unsafe.Offsetof(f.Action.CalloutKey), 4},
-		{"RawContext", unsafe.Offsetof(f.RawContext), 148},
-		{"Reserved", unsafe.Offsetof(f.Reserved), 168},
-		{"FilterID", unsafe.Offsetof(f.FilterID), 176},
-		{"EffectiveWeight", unsafe.Offsetof(f.EffectiveWeight), 184},
+		{"FilterKey", unsafe.Offsetof(f.FilterKey)},
+		{"Display", unsafe.Offsetof(f.Display)},
+		{"Flags", unsafe.Offsetof(f.Flags)},
+		{"ProviderKey", unsafe.Offsetof(f.ProviderKey)},
+		{"ProviderData", unsafe.Offsetof(f.ProviderData)},
+		{"LayerKey", unsafe.Offsetof(f.LayerKey)},
+		{"SublayerKey", unsafe.Offsetof(f.SublayerKey)},
+		{"Weight", unsafe.Offsetof(f.Weight)},
+		{"NumConditions", unsafe.Offsetof(f.NumConditions)},
+		{"Conditions", unsafe.Offsetof(f.Conditions)},
+		{"Action", unsafe.Offsetof(f.Action)},
+		{"Action.Type", unsafe.Offsetof(f.Action.Type)},
+		{"Action.CalloutKey", unsafe.Offsetof(f.Action.CalloutKey)},
+		{"RawContext", unsafe.Offsetof(f.RawContext)},
+		{"Reserved", unsafe.Offsetof(f.Reserved)},
+		{"FilterID", unsafe.Offsetof(f.FilterID)},
+		{"EffectiveWeight", unsafe.Offsetof(f.EffectiveWeight)},
 	}
 	for _, c := range checks {
-		if c.off != c.want {
-			t.Errorf("offset(%s) = %d, want %d", c.name, c.off, c.want)
+		if c.off != off[c.name] {
+			t.Errorf("offset(%s) = %d, want %d", c.name, c.off, off[c.name])
 		}
 	}
-	if unsafe.Sizeof(f) != 200 {
-		t.Errorf("sizeof(FWPM_FILTER0) = %d, want 200", unsafe.Sizeof(f))
+	if unsafe.Sizeof(f) != wantSize {
+		t.Errorf("sizeof(FWPM_FILTER0) = %d, want %d (arch=x%d)",
+			unsafe.Sizeof(f), wantSize, int(unsafe.Sizeof(uintptr(0)))*8)
 	}
 }
 

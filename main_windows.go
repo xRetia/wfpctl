@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -266,6 +267,15 @@ func layerLabel(g windows.GUID) string {
 	}
 	return g.String()
 }
+func directionLabel(g windows.GUID) string {
+	switch g {
+	case layerConnect4, layerConnect6:
+		return "out"
+	case layerRecv4, layerRecv6:
+		return "in"
+	}
+	return ""
+}
 func actionLabel(t uint32) string {
 	switch t {
 	case fwpActionBlock:
@@ -317,6 +327,61 @@ func listRules() error {
 		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
 	}
 	return nil
+}
+
+type ruleJSON struct {
+	ID        uint64 `json:"id"`
+	Name      string `json:"name"`
+	Direction string `json:"direction"`
+	Action    string `json:"action"`
+	Layer     string `json:"layer"`
+	Weight    string `json:"weight"`
+	Key       string `json:"key"`
+}
+
+func listRulesJSON() error {
+	h, err := openEngine()
+	if err != nil {
+		return err
+	}
+	defer call(engineClose, uintptr(h))
+	var enumHandle uintptr
+	if err := call(filterCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
+		return fmt.Errorf("create filter enum: %w", err)
+	}
+	defer call(filterDestroyEnum, uintptr(h), enumHandle)
+	sz := unsafe.Sizeof(uintptr(0))
+	var rules []ruleJSON
+	for {
+		var count uint32
+		var entries unsafe.Pointer
+		if err := call(filterEnum, uintptr(h), enumHandle, 1000000, uintptr(unsafe.Pointer(&entries)), uintptr(unsafe.Pointer(&count))); err != nil {
+			return fmt.Errorf("enumerate filters: %w", err)
+		}
+		if count == 0 {
+			call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
+			break
+		}
+		for i := uint32(0); i < count; i++ {
+			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
+			if f.ProviderKey == nil || *f.ProviderKey != providerKey {
+				continue
+			}
+			rules = append(rules, ruleJSON{
+				ID:        f.FilterID,
+				Name:      windows.UTF16PtrToString(f.Display.Name),
+				Direction: directionLabel(f.LayerKey),
+				Action:    actionLabel(f.Action.Type),
+				Layer:     layerLabel(f.LayerKey),
+				Weight:    weightLabel(f),
+				Key:       strings.Trim(f.FilterKey.String(), "{}"),
+			})
+		}
+		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rules)
 }
 
 func listSubLayers() error {
@@ -773,15 +838,26 @@ func main() {
 			os.Exit(1)
 		}
 	case "list":
+		jsonOut := false
 		for _, a := range os.Args[2:] {
 			if a == "-h" || a == "--help" {
 				mainUsage(nil)
 				return
 			}
+			if a == "-json" {
+				jsonOut = true
+			}
 		}
-		if err := listRules(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		if jsonOut {
+			if err := listRulesJSON(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		} else {
+			if err := listRules(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 		}
 	case "sublayers":
 		fs := flag.NewFlagSet("sublayers", flag.ExitOnError)
