@@ -27,7 +27,7 @@ jobs:
           cache: true
 
       - name: Test & Vet
-        shell: bash
+        shell: pwsh
         working-directory: tools/wfpctl
         run: |
           go test -count=1 ./...
@@ -53,28 +53,28 @@ jobs:
           cache: true
 
       - name: Build
-        shell: bash
+        shell: pwsh
         working-directory: tools/wfpctl
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: |
-          VERSION=$(cat VERSION 2>/dev/null || echo "1.0.0")
+          $VERSION = if (Test-Path VERSION) { (Get-Content VERSION -Raw).Trim() } else { "1.0.0" }
           go build -trimpath -ldflags "-s -w -X main.versionStr=$VERSION" -o "${{ matrix.out }}" .
 
       - name: Verify layout (${{ matrix.goarch }})
-        shell: bash
+        shell: pwsh
         working-directory: tools/wfpctl
         env:
           GOARCH: ${{ matrix.goarch }}
         run: go test -count=1 -run TestFWPMFilter0LayoutMatchesNative ./...
 
       - name: Prepare artifact
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/upload"
-          cp "tools/wfpctl/${{ matrix.out }}" "$GITHUB_WORKSPACE/upload/"
+          New-Item -ItemType Directory -Force -Path upload | Out-Null
+          Copy-Item "tools/wfpctl/${{ matrix.out }}" upload/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -117,30 +117,29 @@ jobs:
         run: pip install PyQt6 pyinstaller
 
       - name: Smoke test
-        shell: bash
         working-directory: tools/wfpctl
         run: python gui/smoke_test.py
 
       - name: PyInstaller
-        shell: bash
+        shell: pwsh
         working-directory: tools/wfpctl
         run: |
-          pyinstaller --onefile --windowed --noconfirm \
-            --name wfpctl-gui \
-            --paths gui \
-            --icon gui/wfpctl_gui/assets/wfpctl.ico \
-            --add-data "gui/wfpctl_gui/assets/wfpctl.ico:wfpctl_gui/assets" \
-            --clean \
+          pyinstaller --onefile --windowed --noconfirm `
+            --name wfpctl-gui `
+            --paths gui `
+            --icon gui/wfpctl_gui/assets/wfpctl.ico `
+            --add-data "gui/wfpctl_gui/assets/wfpctl.ico;wfpctl_gui/assets" `
+            --clean `
             gui/wfpctl_gui/__main__.py
 
       - name: Bundle
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p bundle
-          cp cli-exe/${{ matrix.cli-exe }} bundle/wfpctl.exe
-          cp tools/wfpctl/dist/wfpctl-gui.exe bundle/
+          New-Item -ItemType Directory -Force -Path bundle | Out-Null
+          Copy-Item "cli-exe/${{ matrix.cli-exe }}" bundle/wfpctl.exe
+          Copy-Item "tools/wfpctl/dist/wfpctl-gui.exe" bundle/
           python -c "
-          import zipfile, os, pathlib
+          import zipfile, pathlib
           zf = pathlib.Path('${{ matrix.gui-zip }}')
           with zipfile.ZipFile(zf, 'w', zipfile.ZIP_DEFLATED) as z:
               for f in sorted(pathlib.Path('bundle').iterdir()):
