@@ -663,7 +663,7 @@ func deleteRule(key string) error {
 var (
 	versionStr = "1.0.0"
 	copyright  = "Copyright (c) 2026 xRetia Labs"
-	repoURL    = "https://github.com/xRetia/wpfctl"
+	repoURL    = "https://github.com/xRetia/wfpctl"
 )
 
 func printBanner() {

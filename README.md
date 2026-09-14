@@ -5,7 +5,7 @@
 It targets remote IP (or CIDR), port (or port range) and protocol conditions, and is designed to place your
 rules at the **highest possible priority** on any machine, adapting to whatever sub-layers already exist.
 
-Copyright (c) 2026 xRetia Labs — <https://github.com/xRetia/wpfctl>
+Copyright (c) 2026 xRetia Labs — <https://github.com/xRetia/wfpctl>
 
 - Pure user-mode: talks to `fwpuclnt.dll` directly (no kernel driver, no service).
 - `add` / `delete` / `list` / `sublayers` sub-commands.
@@ -45,7 +45,7 @@ wfpctl help
 
 `wfpctl help` (or no arguments) and every sub-command's `-h`/`--help` show usage; `wfpctl version` shows the
 version. Both print the copyright line (`Copyright (c) 2026 xRetia Labs`) and the project URL
-(`https://github.com/xRetia/wpfctl`).
+(`https://github.com/xRetia/wfpctl`).
 
 Go's flag package accepts both `-flag` and `--flag`.
 
