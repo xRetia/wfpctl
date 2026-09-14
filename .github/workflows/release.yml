@@ -116,12 +116,18 @@ jobs:
       - name: Install
         run: pip install PyQt6 pyinstaller
 
+      - name: Smoke test
+        shell: bash
+        working-directory: tools/wfpctl
+        run: python gui/smoke_test.py
+
       - name: PyInstaller
         shell: bash
         working-directory: tools/wfpctl
         run: |
           pyinstaller --onefile --windowed --noconfirm \
             --name wfpctl-gui \
+            --paths gui \
             --clean \
             gui/wfpctl_gui/__main__.py
 
