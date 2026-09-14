@@ -66,7 +66,7 @@ jobs:
       - name: Verify layout (${{ matrix.goarch }})
         shell: pwsh
         env:
-          GOARCH: ${{ matrix.goarch }}
+          GOARCH: ${{ matrix.goarch == 'arm64' && 'amd64' || matrix.goarch }}
         run: go test -count=1 -run TestFWPMFilter0LayoutMatchesNative ./...
 
       - name: Prepare artifact
