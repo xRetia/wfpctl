@@ -171,9 +171,9 @@ wfpctl.exe sublayers -delete -key 5AF52F9C-EE4D-4A9F-8599-94F0F59E289B
 
 The next `add` recreates provider + sub-layer automatically (re-picking the highest free weight).
 
-`wfpctl sublayers -delete -key <GUID>` deletes a single sub-layer by its GUID and nothing else. A sub-layer
-that still contains filters is rejected by BFE (delete its filters first). If the GUID matches wfpctl's own
-sub-layer, only the sub-layer is removed (the provider stays).
+`wfpctl sublayers -delete -key <GUID>` deletes a single sub-layer by its GUID. It first removes every filter
+still bound to it (regardless of owner), then deletes the sub-layer itself. If the GUID matches wfpctl's own
+sub-layer, only the sub-layer and its filters are removed (the provider stays).
 
 ## How it works
 

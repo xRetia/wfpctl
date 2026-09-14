@@ -365,6 +365,35 @@ func listSubLayers() error {
 	return nil
 }
 
+func enumFilterKeysBySublayer(h windows.Handle, sl windows.GUID) ([]windows.GUID, error) {
+	var enumHandle uintptr
+	if err := call(filterCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
+		return nil, fmt.Errorf("create filter enum: %w", err)
+	}
+	defer call(filterDestroyEnum, uintptr(h), enumHandle)
+	sz := unsafe.Sizeof(uintptr(0))
+	var keys []windows.GUID
+	for {
+		var count uint32
+		var entries unsafe.Pointer
+		if err := call(filterEnum, uintptr(h), enumHandle, 1000000, uintptr(unsafe.Pointer(&entries)), uintptr(unsafe.Pointer(&count))); err != nil {
+			return nil, fmt.Errorf("enumerate filters: %w", err)
+		}
+		if count == 0 {
+			call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
+			break
+		}
+		for i := uint32(0); i < count; i++ {
+			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
+			if f.SublayerKey == sl {
+				keys = append(keys, f.FilterKey)
+			}
+		}
+		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
+	}
+	return keys, nil
+}
+
 func deleteSubLayerByKey(key string) error {
 	g, err := parseGUID(key)
 	if err != nil {
@@ -378,6 +407,16 @@ func deleteSubLayerByKey(key string) error {
 	var p uintptr
 	if e := call(subLayerGet, uintptr(h), uintptr(unsafe.Pointer(&g)), uintptr(unsafe.Pointer(&p))); e != nil {
 		return fmt.Errorf("subLayer %s not found", g.String())
+	}
+	keys, err := enumFilterKeysBySublayer(h, g)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if err := call(filterDelete, uintptr(h), uintptr(unsafe.Pointer(&k))); err != nil {
+			return fmt.Errorf("delete filter %s: %w", k.String(), err)
+		}
+		fmt.Printf("removed filter %s\n", k.String())
 	}
 	if err := call(subLayerDelete, uintptr(h), uintptr(unsafe.Pointer(&g))); err != nil {
 		return fmt.Errorf("delete subLayer %s: %w (remove its filters first)", g.String(), err)
@@ -393,32 +432,10 @@ func deleteOwnSubLayer() error {
 	}
 	defer call(engineClose, uintptr(h))
 	deleted := 0
-	var enumHandle uintptr
-	if err := call(filterCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
-		return fmt.Errorf("create filter enum: %w", err)
+	keys, err := enumFilterKeysBySublayer(h, subLayerKey)
+	if err != nil {
+		return err
 	}
-	sz := unsafe.Sizeof(uintptr(0))
-	var keys []windows.GUID
-	for {
-		var count uint32
-		var entries unsafe.Pointer
-		if err := call(filterEnum, uintptr(h), enumHandle, 1000000, uintptr(unsafe.Pointer(&entries)), uintptr(unsafe.Pointer(&count))); err != nil {
-			call(filterDestroyEnum, uintptr(h), enumHandle)
-			return fmt.Errorf("enumerate filters: %w", err)
-		}
-		if count == 0 {
-			call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
-			break
-		}
-		for i := uint32(0); i < count; i++ {
-			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			if f.SublayerKey == subLayerKey {
-				keys = append(keys, f.FilterKey)
-			}
-		}
-		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
-	}
-	call(filterDestroyEnum, uintptr(h), enumHandle)
 	for _, k := range keys {
 		if err := call(filterDelete, uintptr(h), uintptr(unsafe.Pointer(&k))); err != nil {
 			return fmt.Errorf("delete filter %s: %w", k.String(), err)
