@@ -128,6 +128,8 @@ jobs:
           pyinstaller --onefile --windowed --noconfirm \
             --name wfpctl-gui \
             --paths gui \
+            --icon gui/wfpctl_gui/assets/wfpctl.ico \
+            --add-data "gui/wfpctl_gui/assets/wfpctl.ico:wfpctl_gui/assets" \
             --clean \
             gui/wfpctl_gui/__main__.py
 
