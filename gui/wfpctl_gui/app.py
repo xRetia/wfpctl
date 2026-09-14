@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from PyQt6.QtCore import Qt, QPoint, QTimer
-from PyQt6.QtGui import QAction, QBrush, QColor, QIcon, QPainter, QPalette, QPen, QPixmap, QPolygon
+from PyQt6.QtGui import QAction, QBrush, QColor, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QDialog,
+    QFileDialog,
     QHeaderView,
     QLabel,
     QMainWindow,
@@ -23,43 +24,7 @@ from PyQt6.QtWidgets import (
 
 from wfpctl_gui.dialogs import AboutDialog, AddRuleDialog, SublayersDialog
 from wfpctl_gui.engine import Engine
-
-
-def _make_shield_icon() -> QIcon:
-    size = 64
-    pix = QPixmap(size, size)
-    pix.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pix)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-    p.setBrush(QColor(0, 120, 215))
-    p.setPen(QPen(QColor(0, 80, 160), 2))
-
-    pts = [
-        (32, 4),
-        (56, 14),
-        (56, 32),
-        (56, 44),
-        (44, 56),
-        (32, 60),
-        (20, 56),
-        (8, 44),
-        (8, 32),
-        (8, 14),
-    ]
-    polygon = QPolygon([QPoint(x, y) for x, y in pts])
-    p.drawPolygon(polygon)
-
-    p.setPen(QColor(255, 255, 255))
-    p.setBrush(QColor(255, 255, 255))
-    font = p.font()
-    font.setPixelSize(28)
-    font.setBold(True)
-    p.setFont(font)
-    p.drawText(pix.rect(), Qt.AlignmentFlag.AlignCenter, "W")
-    p.end()
-
-    return QIcon(pix)
+from wfpctl_gui.icons import app_icon
 
 
 LAYER_SHORT = {
@@ -74,7 +39,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("wfpctl - Windows 防火墙控制台 (管理员)")
-        self.setWindowIcon(_make_shield_icon())
+        self.setWindowIcon(app_icon())
         self.resize(960, 600)
 
         self._engine = Engine()
@@ -95,6 +60,13 @@ class MainWindow(QMainWindow):
         self._act_refresh = QAction(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload), "刷新规则", self)
         self._act_refresh.setShortcut("F5")
         file_menu.addAction(self._act_refresh)
+        file_menu.addSeparator()
+        self._act_export = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "导出规则…", self)
+        self._act_export.setShortcut("Ctrl+E")
+        file_menu.addAction(self._act_export)
+        self._act_import = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "导入规则…", self)
+        self._act_import.setShortcut("Ctrl+I")
+        file_menu.addAction(self._act_import)
         file_menu.addSeparator()
         act_quit = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "退出", self)
         act_quit.setShortcut("Alt+F4")
@@ -134,6 +106,9 @@ class MainWindow(QMainWindow):
         tb.addAction(self._act_delete)
         tb.addSeparator()
         tb.addAction(self._act_refresh)
+        tb.addAction(self._act_export)
+        tb.addAction(self._act_import)
+        tb.addSeparator()
         tb.addAction(self._act_sublayers)
         tb.addAction(self._act_cleanup)
 
@@ -154,6 +129,9 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.setStyleSheet(
+            "QTableWidget::item:selected { background-color: #0078D7; color: white; }"
+        )
         self.setCentralWidget(self._table)
 
     def _build_statusbar(self) -> None:
@@ -165,6 +143,8 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self._act_refresh.triggered.connect(self._refresh_rules)
+        self._act_export.triggered.connect(self._export_rules)
+        self._act_import.triggered.connect(self._import_rules)
         self._act_add_block.triggered.connect(lambda: self._add_rule("block"))
         self._act_add_allow.triggered.connect(lambda: self._add_rule("allow"))
         self._act_delete.triggered.connect(self._delete_selected)
@@ -218,6 +198,47 @@ class MainWindow(QMainWindow):
                 self._table.setItem(i, j, item)
 
         self._set_status(f"规则数: {len(rules)}", temporary=False)
+
+    def _export_rules(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "导出规则",
+            "wfpctl-rules.json",
+            "规则文件 (*.json);;所有文件 (*)",
+        )
+        if not path:
+            return
+        try:
+            count = self._engine.export_rules(path)
+            QMessageBox.information(self, "导出完成", f"已导出 {count} 条规则到:\n{path}")
+            self._set_status(f"已导出 {count} 条规则")
+        except Exception as exc:
+            QMessageBox.critical(self, "导出失败", str(exc))
+
+    def _import_rules(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "导入规则",
+            "",
+            "规则文件 (*.json);;所有文件 (*)",
+        )
+        if not path:
+            return
+        try:
+            result = self._engine.import_rules(path)
+            lines = [
+                f"新增: {result.get('added', 0)}",
+                f"跳过(已存在): {result.get('skipped', 0)}",
+                f"失败: {result.get('failed', 0)}",
+            ]
+            errors = result.get("errors")
+            if errors:
+                lines.append("错误详情:")
+                lines.append(str(errors))
+            QMessageBox.information(self, "导入完成", "\n".join(lines))
+            self._refresh_rules()
+        except Exception as exc:
+            QMessageBox.critical(self, "导入失败", str(exc))
 
     def _add_rule(self, default_action: str) -> None:
         dlg = AddRuleDialog(default_action=default_action, parent=self)

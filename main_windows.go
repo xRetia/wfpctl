@@ -336,6 +336,9 @@ type ruleJSON struct {
 	Action    string `json:"action"`
 	Layer     string `json:"layer"`
 	Weight    string `json:"weight"`
+	Target    string `json:"target"`
+	Port      string `json:"port"`
+	Protocol  string `json:"protocol"`
 	Key       string `json:"key"`
 }
 
@@ -367,6 +370,7 @@ func listRulesJSON() error {
 			if f.ProviderKey == nil || *f.ProviderKey != providerKey {
 				continue
 			}
+			meta := ruleMetaFrom(f)
 			rules = append(rules, ruleJSON{
 				ID:        f.FilterID,
 				Name:      windows.UTF16PtrToString(f.Display.Name),
@@ -374,6 +378,9 @@ func listRulesJSON() error {
 				Action:    actionLabel(f.Action.Type),
 				Layer:     layerLabel(f.LayerKey),
 				Weight:    weightLabel(f),
+				Target:    meta.Target,
+				Port:      meta.Port,
+				Protocol:  meta.Protocol,
 				Key:       strings.Trim(f.FilterKey.String(), "{}"),
 			})
 		}
@@ -579,6 +586,36 @@ func parsePortRange(s string) (uint16, uint16, error) {
 	return v, v, nil
 }
 
+type ruleMeta struct {
+	Target    string `json:"target"`
+	Port      string `json:"port"`
+	Protocol  string `json:"protocol"`
+	Direction string `json:"direction"`
+	Action    string `json:"action"`
+	Priority  string `json:"priority"`
+	Weight    uint64 `json:"weight"`
+}
+
+func makeProviderData(m ruleMeta) (byteBlob, []byte, error) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return byteBlob{}, nil, err
+	}
+	return byteBlob{Size: uint32(len(b)), Data: &b[0]}, b, nil
+}
+
+func ruleMetaFrom(f *filter) ruleMeta {
+	if f.ProviderData.Data == nil || f.ProviderData.Size == 0 {
+		return ruleMeta{}
+	}
+	b := unsafe.Slice(f.ProviderData.Data, int(f.ProviderData.Size))
+	var m ruleMeta
+	if err := json.Unmarshal(b, &m); err != nil {
+		return ruleMeta{}
+	}
+	return m
+}
+
 func addRule(name, target, direction, actionName, protocol, portStr, priority, subLayerMode string, custom uint64) error {
 	prefix, err := parseTarget(target)
 	if err != nil {
@@ -652,7 +689,12 @@ func addRule(name, target, direction, actionName, protocol, portStr, priority, s
 		keep = append(keep, &pv)
 		conds = append(conds, condition{FieldKey: fieldProtocol, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpUint8, Value: uintptr(unsafe.Pointer(&pv))}})
 	}
-	_ = keep
+	meta := ruleMeta{Target: target, Port: portStr, Protocol: strings.ToLower(protocol), Direction: direction, Action: actionName, Priority: priority, Weight: weight}
+	pd, pdBytes, err := makeProviderData(meta)
+	if err != nil {
+		return fmt.Errorf("encode metadata: %w", err)
+	}
+	keep = append(keep, pdBytes)
 	h, err := openEngine()
 	if err != nil {
 		return fmt.Errorf("open WFP engine (run as Administrator): %w", err)
@@ -672,7 +714,7 @@ func addRule(name, target, direction, actionName, protocol, portStr, priority, s
 	if err != nil {
 		return fmt.Errorf("generate filter key: %w", err)
 	}
-	f := filter{FilterKey: key, Display: displayData{Name: name16, Description: desc16}, Flags: fwpmFilterPersistent, ProviderKey: &providerKey, LayerKey: layer, SublayerKey: s, Weight: value{Type: fwpUint64, Value: uintptr(unsafe.Pointer(&weight))}, NumConditions: uint32(len(conds)), Conditions: &conds[0]}
+	f := filter{FilterKey: key, Display: displayData{Name: name16, Description: desc16}, Flags: fwpmFilterPersistent, ProviderKey: &providerKey, ProviderData: pd, LayerKey: layer, SublayerKey: s, Weight: value{Type: fwpUint64, Value: uintptr(unsafe.Pointer(&weight))}, NumConditions: uint32(len(conds)), Conditions: &conds[0]}
 	if actionName == "allow" {
 		f.Action.Type = fwpActionPermit
 		f.Flags |= fwpmFilterClearActionRight

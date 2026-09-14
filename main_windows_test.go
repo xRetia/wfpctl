@@ -3,6 +3,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 	"unsafe"
 )
@@ -169,5 +170,30 @@ func TestParsePortRange(t *testing.T) {
 		if lo != c.lo || hi != c.hi {
 			t.Errorf("parsePortRange(%q) = %d-%d, want %d-%d", c.in, lo, hi, c.lo, c.hi)
 		}
+	}
+}
+
+func TestRuleMetaRoundTrip(t *testing.T) {
+	want := ruleMeta{Target: "192.168.1.0/24", Port: "80-443", Protocol: "tcp", Direction: "out", Action: "block", Priority: "highest", Weight: math.MaxUint64}
+	pd, b, err := makeProviderData(want)
+	if err != nil {
+		t.Fatalf("makeProviderData: %v", err)
+	}
+	if pd.Size != uint32(len(b)) {
+		t.Errorf("blob size = %d, want %d", pd.Size, len(b))
+	}
+	got := ruleMetaFrom(&filter{ProviderData: pd})
+	if got != want {
+		t.Errorf("round trip = %+v, want %+v", got, want)
+	}
+}
+
+func TestRuleMetaFromEmptyOrBad(t *testing.T) {
+	if got := ruleMetaFrom(&filter{}); got != (ruleMeta{}) {
+		t.Errorf("empty blob = %+v, want zero", got)
+	}
+	bad := &filter{ProviderData: byteBlob{Size: 11, Data: &([]byte("not-json!..")[0])}}
+	if got := ruleMetaFrom(bad); got != (ruleMeta{}) {
+		t.Errorf("bad blob = %+v, want zero", got)
 	}
 }

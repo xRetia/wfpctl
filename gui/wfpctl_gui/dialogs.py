@@ -120,6 +120,9 @@ class SublayersDialog(QDialog):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.table.setStyleSheet(
+            "QTableWidget::item:selected { background-color: #0078D7; color: white; }"
+        )
         layout.addWidget(self.table)
 
         btn_layout = QHBoxLayout()

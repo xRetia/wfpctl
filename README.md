@@ -128,6 +128,9 @@ Add `-json` for structured output (consumed by the GUI):
     "action": "allow",
     "layer": "ALE_AUTH_RECV_ACCEPT_V4",
     "weight": "18446744073709551615",
+    "target": "10.0.0.0/24",
+    "port": "",
+    "protocol": "",
     "key": "0335BED5-05BD-4CAD-8C30-1229AC1E4BE3"
   }
 ]

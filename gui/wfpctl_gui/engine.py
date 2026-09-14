@@ -157,3 +157,91 @@ class Engine:
             return ok, output.strip() if ok else output.strip() or f"退出码 {r.returncode}"
         except Exception as exc:
             return False, str(exc)
+
+    RULE_FIELDS = ("name", "target", "port", "protocol", "direction", "action")
+
+    @classmethod
+    def _signature(cls, rule: dict[str, Any]) -> tuple[str, ...]:
+        return tuple(str(rule.get(k, "") or "") for k in cls.RULE_FIELDS)
+
+    def export_rules(self, path: str) -> int:
+        rules = self.list_rules()
+        doc = {
+            "format": "wfpctl-rules",
+            "version": 1,
+            "rules": [
+                {
+                    "name": r.get("name", ""),
+                    "target": r.get("target", ""),
+                    "port": r.get("port", ""),
+                    "protocol": r.get("protocol", ""),
+                    "direction": r.get("direction", ""),
+                    "action": r.get("action", ""),
+                    "weight": r.get("weight", "auto"),
+                }
+                for r in rules
+            ],
+        }
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh, ensure_ascii=False, indent=2)
+        return len(doc["rules"])
+
+    def import_rules(self, path: str) -> dict[str, int]:
+        with open(path, "r", encoding="utf-8") as fh:
+            doc = json.load(fh)
+        if not isinstance(doc, dict) or doc.get("format") != "wfpctl-rules":
+            raise ValueError("不是 wfpctl 规则文件")
+        rules = doc.get("rules")
+        if not isinstance(rules, list):
+            raise ValueError("规则文件中缺少 rules 列表")
+
+        existing = {self._signature(r) for r in self.list_rules()}
+
+        added = 0
+        skipped = 0
+        failed = 0
+        errors: list[str] = []
+
+        for i, r in enumerate(rules, 1):
+            if not isinstance(r, dict):
+                failed += 1
+                errors.append(f"第 {i} 条: 记录格式无效")
+                continue
+            sig = self._signature(r)
+            if sig in existing:
+                skipped += 1
+                continue
+            try:
+                priority = "highest"
+                weight = 0
+                weight_s = str(r.get("weight", "auto") or "auto")
+                if weight_s not in ("auto", ""):
+                    weight = int(weight_s)
+                    if weight == 2**64 - 1:
+                        priority = "highest"
+                        weight = 0
+                    elif weight == 1:
+                        priority = "lowest"
+                        weight = 0
+                    else:
+                        priority = "custom"
+                self.add_rule(
+                    name=str(r.get("name", "") or "wfpctl-rule"),
+                    target=str(r.get("target", "") or ""),
+                    port=str(r.get("port", "") or ""),
+                    protocol=str(r.get("protocol", "") or ""),
+                    direction=str(r.get("direction", "") or "out"),
+                    action=str(r.get("action", "") or "block"),
+                    priority=priority,
+                    weight=weight,
+                )
+                added += 1
+                existing.add(sig)
+            except Exception as exc:
+                failed += 1
+                errors.append(f"第 {i} 条: {exc}")
+
+        result: dict[str, int] = {"added": added, "skipped": skipped, "failed": failed}
+        if errors:
+            result["errors"] = "\n".join(errors)
+        return result

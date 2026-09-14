@@ -34,6 +34,12 @@ class StubEngine:
     def delete_sublayer(self, key):
         return True, "ok"
 
+    def export_rules(self, path):
+        return 0
+
+    def import_rules(self, path):
+        return {"added": 0, "skipped": 0, "failed": 0}
+
 
 def main() -> int:
     _app.Engine = StubEngine
@@ -54,9 +60,11 @@ def main() -> int:
 
     toolbar_actions = [a.text() for a in win.findChild(_app.QToolBar).actions()
                        if a.text()]
-    assert len(toolbar_actions) == 6, f"expected 6 toolbar buttons, got {toolbar_actions}"
+    assert len(toolbar_actions) == 8, f"expected 8 toolbar buttons, got {toolbar_actions}"
     assert any("阻止" in s for s in toolbar_actions), toolbar_actions
     assert any("允许" in s for s in toolbar_actions), toolbar_actions
+    assert any("导出" in s for s in toolbar_actions), toolbar_actions
+    assert any("导入" in s for s in toolbar_actions), toolbar_actions
 
     add = _app.AddRuleDialog()
     vals = add.values()
