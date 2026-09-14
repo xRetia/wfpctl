@@ -43,6 +43,8 @@ jobs:
             out: wfpctl64.exe
           - goarch: 386
             out: wfpctl32.exe
+          - goarch: arm64
+            out: wfpctl-arm64.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -80,34 +82,21 @@ jobs:
           if-no-files-found: error
 
   build-gui:
-    name: GUI ${{ matrix.arch }}
+    name: GUI x64
     needs: build-cli
     runs-on: windows-latest
-    strategy:
-      matrix:
-        include:
-          - arch: x64
-            python-arch: x64
-            cli-artifact: cli-amd64
-            cli-exe: wfpctl64.exe
-            gui-zip: wfpctl-gui-x64.zip
-          - arch: x86
-            python-arch: x86
-            cli-artifact: cli-386
-            cli-exe: wfpctl32.exe
-            gui-zip: wfpctl-gui-x32.zip
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.cli-artifact }}
+          name: cli-amd64
           path: cli-exe/
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          architecture: ${{ matrix.python-arch }}
+          architecture: x64
           cache: pip
 
       - name: Install
@@ -131,11 +120,11 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path bundle | Out-Null
-          Copy-Item "cli-exe/${{ matrix.cli-exe }}" bundle/wfpctl.exe
+          Copy-Item "cli-exe/wfpctl64.exe" bundle/wfpctl.exe
           Copy-Item "dist/wfpctl-gui.exe" bundle/
           python -c "
           import zipfile, pathlib
-          zf = pathlib.Path('${{ matrix.gui-zip }}')
+          zf = pathlib.Path('wfpctl-gui-x64.zip')
           with zipfile.ZipFile(zf, 'w', zipfile.ZIP_DEFLATED) as z:
               for f in sorted(pathlib.Path('bundle').iterdir()):
                   z.write(f, f.name)
@@ -143,8 +132,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: gui-${{ matrix.arch }}
-          path: ${{ matrix.gui-zip }}
+          name: gui-x64
+          path: wfpctl-gui-x64.zip
 
   release:
     name: Publish release
