@@ -28,7 +28,6 @@ jobs:
 
       - name: Test & Vet
         shell: pwsh
-        working-directory: tools/wfpctl
         run: |
           go test -count=1 ./...
           go vet ./...
@@ -54,7 +53,6 @@ jobs:
 
       - name: Build
         shell: pwsh
-        working-directory: tools/wfpctl
         env:
           GOOS: windows
           GOARCH: ${{ matrix.goarch }}
@@ -65,7 +63,6 @@ jobs:
 
       - name: Verify layout (${{ matrix.goarch }})
         shell: pwsh
-        working-directory: tools/wfpctl
         env:
           GOARCH: ${{ matrix.goarch }}
         run: go test -count=1 -run TestFWPMFilter0LayoutMatchesNative ./...
@@ -74,7 +71,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path upload | Out-Null
-          Copy-Item "tools/wfpctl/${{ matrix.out }}" upload/
+          Copy-Item "${{ matrix.out }}" upload/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -117,12 +114,10 @@ jobs:
         run: pip install PyQt6 pyinstaller
 
       - name: Smoke test
-        working-directory: tools/wfpctl
         run: python gui/smoke_test.py
 
       - name: PyInstaller
         shell: pwsh
-        working-directory: tools/wfpctl
         run: |
           pyinstaller --onefile --windowed --noconfirm `
             --name wfpctl-gui `
@@ -137,7 +132,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path bundle | Out-Null
           Copy-Item "cli-exe/${{ matrix.cli-exe }}" bundle/wfpctl.exe
-          Copy-Item "tools/wfpctl/dist/wfpctl-gui.exe" bundle/
+          Copy-Item "dist/wfpctl-gui.exe" bundle/
           python -c "
           import zipfile, pathlib
           zf = pathlib.Path('${{ matrix.gui-zip }}')
