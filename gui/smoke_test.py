@@ -23,7 +23,10 @@ class StubEngine:
         return "1.0.0"
 
     def list_sublayers(self):
-        return "WEIGHT  NAME  GUID\n"
+        return [
+            {"weight": 65535, "name": "wfpctl SubLayer", "key": "5AF52F9C-EE4D-4A9F-8599-94F0F59E289B"},
+            {"weight": 0, "name": "Base Filtering Engine", "key": "E03CCE29-B53E-482A-81A9-8B8B1D3F4B13"},
+        ]
 
     def add_rule(self, **kw):
         return "ok"

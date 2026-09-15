@@ -93,14 +93,18 @@ class Engine:
         except Exception:
             return []
 
-    def list_sublayers(self) -> str:
+    def list_sublayers(self) -> list[dict[str, Any]]:
         try:
-            r = self.cmd("sublayers")
-            if r.returncode == 0:
-                return r.stdout.strip() or r.stderr.strip()
-            return r.stderr.strip() or r.stdout.strip() or "无输出"
-        except Exception as exc:
-            return f"错误: {exc}"
+            r = self.cmd("sublayers", "-json")
+            if r.returncode != 0:
+                return []
+            text = r.stdout.strip()
+            if not text:
+                return []
+            data = json.loads(text)
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
 
     def add_rule(
         self,

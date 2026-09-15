@@ -295,18 +295,23 @@ func weightLabel(f *filter) string {
 	}
 	return fmt.Sprintf("0x%x:0x%x", f.Weight.Type, f.Weight.Value)
 }
-func listRules() error {
+func listRules(showAll bool) error {
 	h, err := openEngine()
 	if err != nil {
 		return err
 	}
 	defer call(engineClose, uintptr(h))
+	names, err := subLayerNames(h)
+	if err != nil {
+		return err
+	}
 	var enumHandle uintptr
 	if err := call(filterCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
 		return fmt.Errorf("create filter enum: %w", err)
 	}
 	defer call(filterDestroyEnum, uintptr(h), enumHandle)
 	sz := unsafe.Sizeof(uintptr(0))
+	fmt.Printf("%-14s %-24s %-22s %-22s %-6s %6s %s\n", "FILTER ID", "NAME", "LAYER", "SUBLAYER", "ACTION", "WEIGHT", "GUID")
 	for {
 		var count uint32
 		var entries unsafe.Pointer
@@ -319,10 +324,14 @@ func listRules() error {
 		}
 		for i := uint32(0); i < count; i++ {
 			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			if f.ProviderKey == nil || *f.ProviderKey != providerKey {
+			if !showAll && (f.ProviderKey == nil || *f.ProviderKey != providerKey) {
 				continue
 			}
-			fmt.Printf("%-14d %-24s %-24s %-6s %6s %s\n", f.FilterID, windows.UTF16PtrToString(f.Display.Name), layerLabel(f.LayerKey), actionLabel(f.Action.Type), weightLabel(f), f.FilterKey.String())
+			sn := "(default)"
+			if n, ok := names[f.SublayerKey]; ok && n != "" {
+				sn = n
+			}
+			fmt.Printf("%-14d %-24s %-22s %-22s %-6s %6s %s\n", f.FilterID, windows.UTF16PtrToString(f.Display.Name), layerLabel(f.LayerKey), sn, actionLabel(f.Action.Type), weightLabel(f), f.FilterKey.String())
 		}
 		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
 	}
@@ -335,6 +344,7 @@ type ruleJSON struct {
 	Direction string `json:"direction"`
 	Action    string `json:"action"`
 	Layer     string `json:"layer"`
+	Sublayer  string `json:"sublayer"`
 	Weight    string `json:"weight"`
 	Target    string `json:"target"`
 	Port      string `json:"port"`
@@ -342,12 +352,16 @@ type ruleJSON struct {
 	Key       string `json:"key"`
 }
 
-func listRulesJSON() error {
+func listRulesJSON(showAll bool) error {
 	h, err := openEngine()
 	if err != nil {
 		return err
 	}
 	defer call(engineClose, uintptr(h))
+	names, err := subLayerNames(h)
+	if err != nil {
+		return err
+	}
 	var enumHandle uintptr
 	if err := call(filterCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
 		return fmt.Errorf("create filter enum: %w", err)
@@ -367,16 +381,21 @@ func listRulesJSON() error {
 		}
 		for i := uint32(0); i < count; i++ {
 			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			if f.ProviderKey == nil || *f.ProviderKey != providerKey {
+			if !showAll && (f.ProviderKey == nil || *f.ProviderKey != providerKey) {
 				continue
 			}
 			meta := ruleMetaFrom(f)
+			sn := "(default)"
+			if n, ok := names[f.SublayerKey]; ok && n != "" {
+				sn = n
+			}
 			rules = append(rules, ruleJSON{
 				ID:        f.FilterID,
 				Name:      windows.UTF16PtrToString(f.Display.Name),
 				Direction: directionLabel(f.LayerKey),
 				Action:    actionLabel(f.Action.Type),
 				Layer:     layerLabel(f.LayerKey),
+				Sublayer:  sn,
 				Weight:    weightLabel(f),
 				Target:    meta.Target,
 				Port:      meta.Port,
@@ -391,29 +410,25 @@ func listRulesJSON() error {
 	return enc.Encode(rules)
 }
 
-func listSubLayers() error {
-	h, err := openEngine()
-	if err != nil {
-		return err
-	}
-	defer call(engineClose, uintptr(h))
+type subLayerInfo struct {
+	Weight uint16
+	Name   string
+	Key    windows.GUID
+}
+
+func enumSubLayers(h windows.Handle) ([]subLayerInfo, error) {
 	var enumHandle uintptr
 	if err := call(subLayerCreateEnum, uintptr(h), 0, uintptr(unsafe.Pointer(&enumHandle))); err != nil {
-		return fmt.Errorf("create sublayer enum: %w", err)
+		return nil, fmt.Errorf("create sublayer enum: %w", err)
 	}
 	defer call(subLayerDestroyEnum, uintptr(h), enumHandle)
-	type item struct {
-		w    uint16
-		name string
-		key  windows.GUID
-	}
-	var all []item
+	var all []subLayerInfo
 	sz := unsafe.Sizeof(uintptr(0))
 	for {
 		var count uint32
 		var entries unsafe.Pointer
 		if err := call(subLayerEnum, uintptr(h), enumHandle, 1000000, uintptr(unsafe.Pointer(&entries)), uintptr(unsafe.Pointer(&count))); err != nil {
-			return fmt.Errorf("enumerate sublayers: %w", err)
+			return nil, fmt.Errorf("enumerate sublayers: %w", err)
 		}
 		if count == 0 {
 			call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
@@ -421,20 +436,70 @@ func listSubLayers() error {
 		}
 		for i := uint32(0); i < count; i++ {
 			sl := (*subLayer)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			all = append(all, item{sl.Weight, windows.UTF16PtrToString(sl.Display.Name), sl.SubLayerKey})
+			all = append(all, subLayerInfo{sl.Weight, windows.UTF16PtrToString(sl.Display.Name), sl.SubLayerKey})
 		}
 		call(freeMemory, uintptr(unsafe.Pointer(&entries)), 0)
 	}
-	sort.Slice(all, func(i, j int) bool { return all[i].w > all[j].w })
+	return all, nil
+}
+
+func subLayerNames(h windows.Handle) (map[windows.GUID]string, error) {
+	all, err := enumSubLayers(h)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[windows.GUID]string, len(all))
+	for _, sl := range all {
+		names[sl.Key] = sl.Name
+	}
+	return names, nil
+}
+
+func listSubLayers() error {
+	h, err := openEngine()
+	if err != nil {
+		return err
+	}
+	defer call(engineClose, uintptr(h))
+	all, err := enumSubLayers(h)
+	if err != nil {
+		return err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Weight > all[j].Weight })
 	fmt.Printf("%5s  %-24s  %s\n", "WEIGHT", "NAME", "GUID")
 	for _, it := range all {
-		mark := ""
-		if it.w >= 32768 {
-			mark = "  *"
+		mark := " "
+		if it.Weight >= 32768 {
+			mark = "*"
 		}
-		fmt.Printf("%5d  %-24s  %s%s\n", it.w, it.name, strings.Trim(it.key.String(), "{}"), mark)
+		fmt.Printf("%5d  %-24s  %s %s\n", it.Weight, it.Name, strings.Trim(it.Key.String(), "{}"), mark)
 	}
 	return nil
+}
+
+func listSubLayersJSON() error {
+	h, err := openEngine()
+	if err != nil {
+		return err
+	}
+	defer call(engineClose, uintptr(h))
+	all, err := enumSubLayers(h)
+	if err != nil {
+		return err
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Weight > all[j].Weight })
+	type itemJSON struct {
+		Weight uint16 `json:"weight"`
+		Name   string `json:"name"`
+		Key    string `json:"key"`
+	}
+	out := make([]itemJSON, 0, len(all))
+	for _, it := range all {
+		out = append(out, itemJSON{it.Weight, it.Name, strings.Trim(it.Key.String(), "{}")})
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 func enumFilterKeysBySublayer(h windows.Handle, sl windows.GUID) ([]windows.GUID, error) {
@@ -881,7 +946,9 @@ func main() {
 		}
 	case "list":
 		jsonOut := false
-		for _, a := range os.Args[2:] {
+		showAll := false
+		for i := 0; i < len(os.Args[2:]); i++ {
+			a := os.Args[2:][i]
 			if a == "-h" || a == "--help" {
 				mainUsage(nil)
 				return
@@ -889,14 +956,17 @@ func main() {
 			if a == "-json" {
 				jsonOut = true
 			}
+			if a == "-all" {
+				showAll = true
+			}
 		}
 		if jsonOut {
-			if err := listRulesJSON(); err != nil {
+			if err := listRulesJSON(showAll); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 		} else {
-			if err := listRules(); err != nil {
+			if err := listRules(showAll); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
@@ -906,6 +976,7 @@ func main() {
 		fsUsage("sublayers", "[flags]", fs)
 		del := fs.Bool("delete", false, "delete a sub-layer")
 		key := fs.String("key", "", "sub-layer GUID to delete (omit to delete wfpctl's own)")
+		jsonOut := fs.Bool("json", false, "output sub-layers as JSON")
 		_ = fs.Parse(os.Args[2:])
 		var err error
 		switch {
@@ -913,6 +984,8 @@ func main() {
 			err = deleteSubLayerByKey(*key)
 		case *del:
 			err = deleteOwnSubLayer()
+		case *jsonOut:
+			err = listSubLayersJSON()
 		case *key != "":
 			err = errors.New("-key requires -delete")
 		default:

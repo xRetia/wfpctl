@@ -147,41 +147,19 @@ class SublayersDialog(QDialog):
         from PyQt6.QtWidgets import QApplication
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            text = self._engine.list_sublayers()
+            sublayers = self._engine.list_sublayers()
         finally:
             QApplication.restoreOverrideCursor()
 
         self.table.setRowCount(0)
-        lines = text.strip().splitlines()
-        if not lines:
+        if not sublayers:
             return
 
-        rows: list[tuple[str, str, str]] = []
-        header_seen = False
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
-                continue
-            if stripped.startswith("WEIGHT") or stripped.startswith("权重"):
-                header_seen = True
-                continue
-            if not header_seen:
-                continue
-            parts = stripped.split()
-            if len(parts) >= 2:
-                weight = parts[0]
-                guid = parts[-1].rstrip("*")
-                name = " ".join(parts[1:-1]) if len(parts) > 2 else ""
-                if len(parts) == 2:
-                    name = ""
-                    guid = parts[1]
-                rows.append((weight, name, guid))
-
-        self.table.setRowCount(len(rows))
-        for i, (w, n, g) in enumerate(rows):
-            self.table.setItem(i, 0, QTableWidgetItem(w))
-            self.table.setItem(i, 1, QTableWidgetItem(n))
-            self.table.setItem(i, 2, QTableWidgetItem(g))
+        self.table.setRowCount(len(sublayers))
+        for i, s in enumerate(sublayers):
+            self.table.setItem(i, 0, QTableWidgetItem(str(s.get("weight", ""))))
+            self.table.setItem(i, 1, QTableWidgetItem(str(s.get("name", ""))))
+            self.table.setItem(i, 2, QTableWidgetItem(str(s.get("key", ""))))
 
     def _delete_selected(self) -> None:
         rows = self.table.selectionModel().selectedRows()
