@@ -178,9 +178,35 @@ Terminating actions (`block` / `allow`) stop evaluation, and a hard `block` in a
 4. Adds filters into that sub-layer with a `uint64` filter weight (default `math.MaxUint64`), so yours win
    over every rule in any lower sub-layer.
 
-Every **permit** (`-action allow`) filter is additionally flagged `FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT` (0x8). This gives it a **hard permit** semantics: while a plain filter permit is a *soft* permit (a lower sub-layer's `block` can override it), a hard permit cannot be overridden by ordinary `block` filters in lower sub-layers — the only thing that can still block the traffic is a kernel callout **Veto** (rare, and it triggers an audit event). `block` filters are already **hard** by default in the filter engine, so no flag is needed on them.
+Every **permit** (`-action allow`) filter is additionally flagged `FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT` (0x8),
+which gives it a **hard permit** semantics **scoped to the current layer**: on a match, the flag clears the
+filter's action rights so lower sub-layers *in the same layer* can no longer change the outcome (a plain
+permit is only a *soft* permit that a lower sub-layer's `block` can override). Block filters are already
+"hard" by default in the engine, so no flag is needed on them.
 
-The flag only changes the arbitration override rights of an action — it is unrelated to ACL permissions and does **not** stop `wfpctl delete`; filters remain removable via `FwpmFilterDeleteByKey0`.
+This is **not** a global override of the machine's firewall. WFP evaluates each layer independently and a
+connection passes through several layers in order. wfpctl adds its rules to the `ALE_AUTH_*` layers
+(`ALE_AUTH_CONNECT_V4/V6`, `ALE_AUTH_RECV_ACCEPT_V4/V6`); therefore a hard allow only shields that
+connection from lower sub-layers *within* those `ALE_AUTH_*` layers. It cannot undo:
+
+- traffic already redirected / pended / absorbed / reset by a callout in an **earlier** layer, such as
+  `ALE_CONNECT_REDIRECT`, `ALE_BIND_REDIRECT`, `OUTBOUND`/`INBOUND_TRANSPORT`, `STREAM`, or
+  `INBOUND`/`OUTBOUND_IPPACKET`;
+- a TCP `RST` already injected by a kernel callout (for example a `FWP_ACTION_CALLOUT_TERMINATING` /
+  `FWP_ACTION_CALLOUT_UNKNOWN` filter whose final action the callout driver decides);
+- connections created later by a proxy / VPN / TUN, which are new connections that never matched the
+  original `ALE_AUTH_*` filter in the first place.
+
+So the practical meaning is: **after a wfpctl hard allow matches, the connection is no longer affected by
+lower sub-layers of the same `ALE_AUTH_*` layer, but it can still have been redirected or terminated by a
+vendor working in earlier `ALE_*` layers, and can still re-enter that vendor on later transport/stream
+layers.** When troubleshooting a vendor that still blocks you, compare the WFP `netevent` layer of the
+block/RST, the layer of the vendor's filters, and the layer of your `wfpctl` rule. If the RST was raised in
+`ALE_CONNECT_REDIRECT`, `OUTBOUND_TRANSPORT`, or `STREAM` while your rule sits in `ALE_AUTH_CONNECT`, the
+hard flag is working correctly — it just is not global.
+
+The flag only changes the arbitration override rights of an action within a layer — it is unrelated to ACL
+permissions and does **not** stop `wfpctl delete`; filters remain removable via `FwpmFilterDeleteByKey0`.
 
 Note: `65535` is the maximum `UINT16` sub-layer weight — if another vendor already registered `65535`, a
 tie is unavoidable (order among equal weights is unspecified). The tool then prints who holds the higher
