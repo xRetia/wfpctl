@@ -295,12 +295,48 @@ func weightLabel(f *filter) string {
 	}
 	return fmt.Sprintf("0x%x:0x%x", f.Weight.Type, f.Weight.Value)
 }
-func listRules(showAll bool) error {
+func resolveSubLayer(h windows.Handle, selector string) (windows.GUID, error) {
+	if g, err := parseGUID(selector); err == nil {
+		return g, nil
+	}
+	names, err := subLayerNames(h)
+	if err != nil {
+		return windows.GUID{}, err
+	}
+	for key, name := range names {
+		if strings.EqualFold(name, selector) {
+			return key, nil
+		}
+	}
+	return windows.GUID{}, fmt.Errorf("sublayer %q not found (use GUID or exact name)", selector)
+}
+
+// matchFilter reports whether a filter belongs to wfpctl (only), all filters
+// (showAll), or the given sublayer (subGUID, non-nil).
+func matchFilter(f *filter, showAll bool, subGUID *windows.GUID) bool {
+	if subGUID != nil {
+		return f.SublayerKey == *subGUID
+	}
+	if showAll {
+		return true
+	}
+	return f.ProviderKey != nil && *f.ProviderKey == providerKey
+}
+
+func listRules(showAll bool, subSelector string) error {
 	h, err := openEngine()
 	if err != nil {
 		return err
 	}
 	defer call(engineClose, uintptr(h))
+	var subGUID *windows.GUID
+	if subSelector != "" {
+		g, err := resolveSubLayer(h, subSelector)
+		if err != nil {
+			return err
+		}
+		subGUID = &g
+	}
 	names, err := subLayerNames(h)
 	if err != nil {
 		return err
@@ -324,7 +360,7 @@ func listRules(showAll bool) error {
 		}
 		for i := uint32(0); i < count; i++ {
 			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			if !showAll && (f.ProviderKey == nil || *f.ProviderKey != providerKey) {
+			if !matchFilter(f, showAll, subGUID) {
 				continue
 			}
 			sn := "(default)"
@@ -352,12 +388,20 @@ type ruleJSON struct {
 	Key       string `json:"key"`
 }
 
-func listRulesJSON(showAll bool) error {
+func listRulesJSON(showAll bool, subSelector string) error {
 	h, err := openEngine()
 	if err != nil {
 		return err
 	}
 	defer call(engineClose, uintptr(h))
+	var subGUID *windows.GUID
+	if subSelector != "" {
+		g, err := resolveSubLayer(h, subSelector)
+		if err != nil {
+			return err
+		}
+		subGUID = &g
+	}
 	names, err := subLayerNames(h)
 	if err != nil {
 		return err
@@ -381,7 +425,7 @@ func listRulesJSON(showAll bool) error {
 		}
 		for i := uint32(0); i < count; i++ {
 			f := (*filter)(*(*unsafe.Pointer)(unsafe.Add(entries, uintptr(i)*sz)))
-			if !showAll && (f.ProviderKey == nil || *f.ProviderKey != providerKey) {
+			if !matchFilter(f, showAll, subGUID) {
 				continue
 			}
 			meta := ruleMetaFrom(f)
@@ -947,8 +991,10 @@ func main() {
 	case "list":
 		jsonOut := false
 		showAll := false
-		for i := 0; i < len(os.Args[2:]); i++ {
-			a := os.Args[2:][i]
+		subSelector := ""
+		args := os.Args[2:]
+		for i := 0; i < len(args); i++ {
+			a := args[i]
 			if a == "-h" || a == "--help" {
 				mainUsage(nil)
 				return
@@ -959,14 +1005,18 @@ func main() {
 			if a == "-all" {
 				showAll = true
 			}
+			if a == "-sublayer" && i+1 < len(args) {
+				subSelector = args[i+1]
+				i++
+			}
 		}
 		if jsonOut {
-			if err := listRulesJSON(showAll); err != nil {
+			if err := listRulesJSON(showAll, subSelector); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 		} else {
-			if err := listRules(showAll); err != nil {
+			if err := listRules(showAll, subSelector); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}

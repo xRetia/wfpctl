@@ -80,9 +80,14 @@ class Engine:
         except Exception:
             return "unknown"
 
-    def list_rules(self) -> list[dict[str, Any]]:
+    def list_rules(self, show_all: bool = False, sublayer: str = "") -> list[dict[str, Any]]:
         try:
-            r = self.cmd("list", "-json")
+            args = ["list", "-json"]
+            if show_all:
+                args.append("-all")
+            if sublayer:
+                args += ["-sublayer", sublayer]
+            r = self.cmd(*args)
             if r.returncode != 0:
                 return []
             text = r.stdout.strip()

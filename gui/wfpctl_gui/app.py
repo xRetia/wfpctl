@@ -19,7 +19,9 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QToolBar,
+    QVBoxLayout,
     QWidget,
+    QComboBox,
 )
 
 from wfpctl_gui.dialogs import AboutDialog, AddRuleDialog, SublayersDialog
@@ -44,11 +46,15 @@ class MainWindow(QMainWindow):
 
         self._engine = Engine()
 
+        self._show_all = False
+        self._sub_filter = ""
+
         self._build_menu()
         self._build_toolbar()
         self._build_table()
         self._build_statusbar()
         self._connect_signals()
+        self._refresh_sublayers()
         self._refresh_rules()
 
     def _build_menu(self) -> None:
@@ -114,25 +120,43 @@ class MainWindow(QMainWindow):
 
     def _build_table(self) -> None:
         self._table = QTableWidget()
-        self._table.setColumnCount(7)
-        self._table.setHorizontalHeaderLabels(["ID", "名称", "方向", "动作", "层", "权重", "GUID"])
+        self._table.setColumnCount(8)
+        self._table.setHorizontalHeaderLabels(["ID", "名称", "方向", "动作", "层", "子层", "权重", "GUID"])
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.verticalHeader().setVisible(False)
         header = self._table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header = self._table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(0, 80)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
+        self._guid_col = header.sectionSizeHint(7)
+        guid_w = self._table.fontMetrics().horizontalAdvance("00000000-0000-0000-0000-000000000000") + 24
+        header.resizeSection(7, max(self._guid_col, guid_w))
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.setStyleSheet(
             "QTableWidget::item:selected { background-color: #0078D7; color: white; }"
         )
-        self.setCentralWidget(self._table)
+
+        self._filter_combo = QComboBox()
+        self._filter_combo.addItem("仅 wfpctl 规则", "")
+        self._filter_combo.addItem("所有子层 (All)", "__all__")
+        self._filter_combo.setToolTip("按子层筛选规则")
+        self._filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+
+        container = QWidget()
+        vbox = QVBoxLayout(container)
+        vbox.setContentsMargins(6, 4, 6, 0)
+        vbox.addWidget(self._filter_combo)
+        vbox.addWidget(self._table)
+        self.setCentralWidget(container)
 
     def _build_statusbar(self) -> None:
         sb = self.statusBar()
@@ -160,6 +184,35 @@ class MainWindow(QMainWindow):
         else:
             self._status_label.setText(msg)
 
+    def _refresh_sublayers(self) -> None:
+        if not self._engine.available:
+            return
+        current = self._filter_combo.currentData()
+        try:
+            sublayers = self._engine.list_sublayers()
+        except Exception:
+            sublayers = []
+        self._filter_combo.blockSignals(True)
+        self._filter_combo.clear()
+        self._filter_combo.addItem("仅 wfpctl 规则", "")
+        self._filter_combo.addItem("所有子层 (All)", "__all__")
+        for s in sublayers:
+            name = s.get("name", "")
+            key = s.get("key", "")
+            self._filter_combo.addItem(f"{name}  [{key}]", key)
+        idx = self._filter_combo.findData(current)
+        if idx >= 0:
+            self._filter_combo.setCurrentIndex(idx)
+        else:
+            self._filter_combo.setCurrentIndex(0)
+        self._filter_combo.blockSignals(False)
+
+    def _on_filter_changed(self) -> None:
+        data = self._filter_combo.currentData()
+        self._show_all = data == "__all__"
+        self._sub_filter = "" if data in (None, "", "__all__") else str(data)
+        self._refresh_rules()
+
     def _refresh_rules(self) -> None:
         if not self._engine.available:
             QMessageBox.critical(
@@ -169,7 +222,7 @@ class MainWindow(QMainWindow):
             )
             return
 
-        rules = self._engine.list_rules()
+        rules = self._engine.list_rules(show_all=self._show_all, sublayer=self._sub_filter)
         self._table.setRowCount(0)
         self._table.setRowCount(len(rules))
 
@@ -183,6 +236,7 @@ class MainWindow(QMainWindow):
                 r.get("direction", ""),
                 r.get("action", ""),
                 LAYER_SHORT.get(r.get("layer", ""), r.get("layer", "")),
+                r.get("sublayer", ""),
                 r.get("weight", ""),
                 r.get("key", ""),
             ]
@@ -193,7 +247,7 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(text)
                 if j == 3:
                     item.setForeground(brush)
-                if j == 6:
+                if j == 7:
                     item.setData(Qt.ItemDataRole.UserRole, r.get("key", ""))
                 self._table.setItem(i, j, item)
 
@@ -276,7 +330,7 @@ class MainWindow(QMainWindow):
 
         errors: list[str] = []
         for idx in rows:
-            key_item = self._table.item(idx.row(), 6)
+            key_item = self._table.item(idx.row(), 7)
             if not key_item:
                 continue
             key = key_item.data(Qt.ItemDataRole.UserRole) or key_item.text()
@@ -349,7 +403,7 @@ class MainWindow(QMainWindow):
         rows = self._table.selectionModel().selectedRows()
         if not rows:
             return
-        key_item = self._table.item(rows[0].row(), 6)
+        key_item = self._table.item(rows[0].row(), 7)
         if key_item:
             guid = key_item.data(Qt.ItemDataRole.UserRole) or key_item.text()
             QApplication.clipboard().setText(guid)

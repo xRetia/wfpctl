@@ -16,8 +16,13 @@ class StubEngine:
     _exe = "stub"
     available = True
 
-    def list_rules(self):
-        return []
+    def list_rules(self, show_all=False, sublayer=""):
+        return [{
+            "id": 1, "name": "demo", "direction": "out", "action": "block",
+            "layer": "ALE_AUTH_CONNECT_V4", "sublayer": "wfpctl SubLayer",
+            "weight": "1", "target": "1.2.3.4", "port": "443",
+            "protocol": "tcp", "key": "01234567-89AB-CDEF-0123-456789ABCDEF",
+        }]
 
     def version(self):
         return "1.0.0"
@@ -55,10 +60,19 @@ def main() -> int:
     assert not win.windowIcon().isNull(), "window icon missing"
 
     table = win._table
-    assert table.columnCount() == 7, f"expected 7 columns, got {table.columnCount()}"
-    headers = [table.horizontalHeaderItem(i).text() for i in range(7)]
+    assert table.columnCount() == 8, f"expected 8 columns, got {table.columnCount()}"
+    headers = [table.horizontalHeaderItem(i).text() for i in range(8)]
     assert headers[:2] == ["ID", "名称"], headers
-    assert "规则数: 0" in win._status_label.text(), win._status_label.text()
+    assert "子层" in headers, headers
+    assert win._filter_combo, "sublayer filter combo missing"
+    assert win._filter_combo.count() >= 2, "filter combo should have default + all + sublayers"
+    assert table.rowCount() == 1, f"expected 1 row from stub, got {table.rowCount()}"
+    assert "规则数: 1" in win._status_label.text(), win._status_label.text()
+
+    # GUID column should be fixed-width, not stretch
+    from PyQt6.QtWidgets import QHeaderView
+    guid_mode = table.horizontalHeader().sectionResizeMode(7)
+    assert guid_mode == QHeaderView.ResizeMode.Fixed, f"GUID column should be fixed, got {guid_mode}"
     assert win.menuBar(), "menu bar missing"
 
     toolbar_actions = [a.text() for a in win.findChild(_app.QToolBar).actions()
