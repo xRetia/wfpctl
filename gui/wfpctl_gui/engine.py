@@ -123,6 +123,7 @@ class Engine:
         action: str,
         priority: str,
         weight: int,
+        all_layers: bool = False,
     ) -> str:
         args = ["add"]
         args += ["-name", name]
@@ -137,6 +138,8 @@ class Engine:
             args += ["-priority", "custom", "-weight", str(weight)]
         else:
             args += ["-priority", priority]
+        if all_layers:
+            args += ["-all-layers"]
         try:
             r = self.cmd(*args)
             output = (r.stdout or "") + (r.stderr or "")
@@ -177,20 +180,29 @@ class Engine:
 
     def export_rules(self, path: str) -> int:
         rules = self.list_rules()
+        grouped: dict[tuple[str, ...], dict[str, Any]] = {}
+        for r in rules:
+            sig = self._signature(r)
+            rec = grouped.setdefault(sig, {})
+            for k in self.RULE_FIELDS:
+                rec[k] = r.get(k, "")
+            rec.setdefault("weight", r.get("weight", "auto"))
+            rec["count"] = rec.get("count", 0) + 1
         doc = {
             "format": "wfpctl-rules",
             "version": 1,
             "rules": [
                 {
-                    "name": r.get("name", ""),
-                    "target": r.get("target", ""),
-                    "port": r.get("port", ""),
-                    "protocol": r.get("protocol", ""),
-                    "direction": r.get("direction", ""),
-                    "action": r.get("action", ""),
-                    "weight": r.get("weight", "auto"),
+                    "name": rec["name"],
+                    "target": rec["target"],
+                    "port": rec["port"],
+                    "protocol": rec["protocol"],
+                    "direction": rec["direction"],
+                    "action": rec["action"],
+                    "weight": rec["weight"],
+                    "all_layers": rec["count"] > 1,
                 }
-                for r in rules
+                for rec in grouped.values()
             ],
         }
         with open(path, "w", encoding="utf-8") as fh:
@@ -245,6 +257,7 @@ class Engine:
                     action=str(r.get("action", "") or "block"),
                     priority=priority,
                     weight=weight,
+                    all_layers=bool(r.get("all_layers", False)),
                 )
                 added += 1
                 existing.add(sig)

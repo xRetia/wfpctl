@@ -84,7 +84,7 @@
   <h2 class="section">Usage</h2>
   <pre>wfpctl add      [-name &lt;name&gt;] -target &lt;ip|cidr&gt; [-direction in|out] [-action block|allow]
                 [-protocol tcp|udp|&lt;number&gt;] [-port &lt;port|range&gt;] [-priority highest|lowest|custom]
-                [-weight &lt;uint64&gt;] [-sublayer high|default]
+                [-weight &lt;uint64&gt;] [-sublayer high|default] [-all-layers]
 wfpctl delete   -key &lt;filter-GUID&gt;
 wfpctl list     [-json] [-all] [-sublayer &lt;GUID|name&gt;]
 wfpctl sublayers [-json] [-delete [-key &lt;sub-layer-GUID&gt;]]
@@ -102,7 +102,12 @@ wfpctl help</pre>
 wfpctl.exe add -name block-range -target 192.168.1.0/24 -direction out -action block -port 443 -protocol tcp
 
 # List every wfpctl filter across all sub-layers, as JSON
-wfpctl.exe list -all -json</pre>
+wfpctl.exe list -all -json
+
+# Overtake a competing product on every relevant layer (ALE auth + redirects,
+# transport, IP packet, stream, flow-established) at once. Works for block and allow.
+wfpctl.exe add -name block-every-layer -target 203.0.113.10 -direction out -action block -all-layers
+wfpctl.exe add -name permit-every-layer -target 203.0.113.10 -direction in  -action allow -all-layers</pre>
 
   <footer>
     Copyright (c) 2026 xRetia Labs ·

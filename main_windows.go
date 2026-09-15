@@ -18,23 +18,23 @@ import (
 )
 
 const (
-	fwpEmpty             = 0
-	fwpUint8             = 1
-	fwpUint16            = 2
-	fwpUint64            = 4
-	fwpByteArray16       = 11
-	fwpV4AddrMask        = 256
-	fwpV6AddrMask        = 257
-fwpMatchEqual       = 0
-	fwpMatchGreaterOrEq = 3
-	fwpMatchLessOrEq    = 4
-	fwpActionBlock        = 0x00001001
-	fwpActionPermit       = 0x00001002
-	fwpmFilterPersistent  = 0x00000001
+	fwpEmpty                   = 0
+	fwpUint8                   = 1
+	fwpUint16                  = 2
+	fwpUint64                  = 4
+	fwpByteArray16             = 11
+	fwpV4AddrMask              = 256
+	fwpV6AddrMask              = 257
+	fwpMatchEqual              = 0
+	fwpMatchGreaterOrEq        = 3
+	fwpMatchLessOrEq           = 4
+	fwpActionBlock             = 0x00001001
+	fwpActionPermit            = 0x00001002
+	fwpmFilterPersistent       = 0x00000001
 	fwpmFilterClearActionRight = 0x00000008
-	fwpmSubLayerPersistent = 0x00000001
-	fwpmProviderPersistent = 0x00000001
-	authnServiceWinNT     = 10
+	fwpmSubLayerPersistent     = 0x00000001
+	fwpmProviderPersistent     = 0x00000001
+	authnServiceWinNT          = 10
 )
 
 type displayData struct{ Name, Description *uint16 }
@@ -108,24 +108,24 @@ type v6AddrMask struct {
 }
 
 var (
-	fwpuclnt     = windows.NewLazySystemDLL("fwpuclnt.dll")
-	engineOpen   = fwpuclnt.NewProc("FwpmEngineOpen0")
-	engineClose  = fwpuclnt.NewProc("FwpmEngineClose0")
-	filterAdd         = fwpuclnt.NewProc("FwpmFilterAdd0")
-	filterDelete      = fwpuclnt.NewProc("FwpmFilterDeleteByKey0")
-	filterCreateEnum  = fwpuclnt.NewProc("FwpmFilterCreateEnumHandle0")
-	filterEnum        = fwpuclnt.NewProc("FwpmFilterEnum0")
-	filterDestroyEnum = fwpuclnt.NewProc("FwpmFilterDestroyEnumHandle0")
-	subLayerAdd       = fwpuclnt.NewProc("FwpmSubLayerAdd0")
-	subLayerGet       = fwpuclnt.NewProc("FwpmSubLayerGetByKey0")
-	subLayerDelete     = fwpuclnt.NewProc("FwpmSubLayerDeleteByKey0")
-	subLayerCreateEnum = fwpuclnt.NewProc("FwpmSubLayerCreateEnumHandle0")
-	subLayerEnum      = fwpuclnt.NewProc("FwpmSubLayerEnum0")
+	fwpuclnt            = windows.NewLazySystemDLL("fwpuclnt.dll")
+	engineOpen          = fwpuclnt.NewProc("FwpmEngineOpen0")
+	engineClose         = fwpuclnt.NewProc("FwpmEngineClose0")
+	filterAdd           = fwpuclnt.NewProc("FwpmFilterAdd0")
+	filterDelete        = fwpuclnt.NewProc("FwpmFilterDeleteByKey0")
+	filterCreateEnum    = fwpuclnt.NewProc("FwpmFilterCreateEnumHandle0")
+	filterEnum          = fwpuclnt.NewProc("FwpmFilterEnum0")
+	filterDestroyEnum   = fwpuclnt.NewProc("FwpmFilterDestroyEnumHandle0")
+	subLayerAdd         = fwpuclnt.NewProc("FwpmSubLayerAdd0")
+	subLayerGet         = fwpuclnt.NewProc("FwpmSubLayerGetByKey0")
+	subLayerDelete      = fwpuclnt.NewProc("FwpmSubLayerDeleteByKey0")
+	subLayerCreateEnum  = fwpuclnt.NewProc("FwpmSubLayerCreateEnumHandle0")
+	subLayerEnum        = fwpuclnt.NewProc("FwpmSubLayerEnum0")
 	subLayerDestroyEnum = fwpuclnt.NewProc("FwpmSubLayerDestroyEnumHandle0")
-	providerAdd       = fwpuclnt.NewProc("FwpmProviderAdd0")
-	providerGet       = fwpuclnt.NewProc("FwpmProviderGetByKey0")
-	providerDelete     = fwpuclnt.NewProc("FwpmProviderDeleteByKey0")
-	freeMemory        = fwpuclnt.NewProc("FwpmFreeMemory0")
+	providerAdd         = fwpuclnt.NewProc("FwpmProviderAdd0")
+	providerGet         = fwpuclnt.NewProc("FwpmProviderGetByKey0")
+	providerDelete      = fwpuclnt.NewProc("FwpmProviderDeleteByKey0")
+	freeMemory          = fwpuclnt.NewProc("FwpmFreeMemory0")
 )
 
 var (
@@ -136,6 +136,22 @@ var (
 	layerConnect6      = windows.GUID{Data1: 0x4a72393b, Data2: 0x319f, Data3: 0x44bc, Data4: [8]byte{0x84, 0xc3, 0xba, 0x54, 0xdc, 0xb3, 0xb6, 0xb4}}
 	layerRecv4         = windows.GUID{Data1: 0xe1cd9fe7, Data2: 0xf4b5, Data3: 0x4273, Data4: [8]byte{0x96, 0xc0, 0x59, 0x2e, 0x48, 0x7b, 0x86, 0x50}}
 	layerRecv6         = windows.GUID{Data1: 0xa3b42c97, Data2: 0x9f04, Data3: 0x4672, Data4: [8]byte{0xb8, 0x7e, 0xce, 0xe9, 0xc4, 0x83, 0x25, 0x7f}}
+	layerConnectRedir4 = windows.GUID{Data1: 0xc6e63c8c, Data2: 0xb784, Data3: 0x4562, Data4: [8]byte{0xaa, 0x7d, 0x0a, 0x67, 0xcf, 0xca, 0xf9, 0xa3}}
+	layerConnectRedir6 = windows.GUID{Data1: 0x587e54a7, Data2: 0x8046, Data3: 0x42ba, Data4: [8]byte{0xa0, 0xaa, 0xb7, 0x16, 0x25, 0x0f, 0xc7, 0xfd}}
+	layerRecvRedir4    = windows.GUID{Data1: 0x29243af8, Data2: 0xecaf, Data3: 0x4436, Data4: [8]byte{0xa4, 0x4e, 0xf9, 0xfb, 0x70, 0x70, 0xaa, 0x04}}
+	layerRecvRedir6    = windows.GUID{Data1: 0xc9809347, Data2: 0x218f, Data3: 0x4b7f, Data4: [8]byte{0xa7, 0x42, 0xb2, 0x81, 0xa3, 0xf6, 0x31, 0xb4}}
+	layerOutTran4      = windows.GUID{Data1: 0x09e61aea, Data2: 0xd214, Data3: 0x46e2, Data4: [8]byte{0x9b, 0x21, 0xb2, 0x6b, 0x0b, 0x2f, 0x28, 0xc8}}
+	layerOutTran6      = windows.GUID{Data1: 0xe1735bde, Data2: 0x013f, Data3: 0x4655, Data4: [8]byte{0xb3, 0x51, 0xa4, 0x9e, 0x15, 0x76, 0x2d, 0xf0}}
+	layerInTran4       = windows.GUID{Data1: 0x5926dfc8, Data2: 0xe3cf, Data3: 0x4426, Data4: [8]byte{0xa2, 0x83, 0xdc, 0x39, 0x3f, 0x5d, 0x0f, 0x9d}}
+	layerInTran6       = windows.GUID{Data1: 0x634a869f, Data2: 0xfc23, Data3: 0x4b90, Data4: [8]byte{0xb0, 0xc1, 0xbf, 0x62, 0x0a, 0x36, 0xae, 0x6f}}
+	layerOutIP4        = windows.GUID{Data1: 0x1e5c9fae, Data2: 0x8a84, Data3: 0x4135, Data4: [8]byte{0xa3, 0x31, 0x95, 0x0b, 0x54, 0x22, 0x9e, 0xcd}}
+	layerOutIP6        = windows.GUID{Data1: 0x9513d7c4, Data2: 0xa934, Data3: 0x49dc, Data4: [8]byte{0x91, 0xa7, 0x6c, 0xcb, 0x80, 0xcc, 0x02, 0xe3}}
+	layerInIP4         = windows.GUID{Data1: 0xb5a230d0, Data2: 0xa8c0, Data3: 0x44f2, Data4: [8]byte{0x91, 0x6e, 0x99, 0x1b, 0x53, 0xde, 0xd1, 0xf7}}
+	layerInIP6         = windows.GUID{Data1: 0xf52032cb, Data2: 0x991c, Data3: 0x46e7, Data4: [8]byte{0x97, 0x1d, 0x26, 0x01, 0x45, 0x9a, 0x91, 0xca}}
+	layerStream4       = windows.GUID{Data1: 0xaf52d8ec, Data2: 0xcb2d, Data3: 0x44e5, Data4: [8]byte{0xad, 0x92, 0xf8, 0xdc, 0x38, 0xd2, 0xeb, 0x29}}
+	layerStream6       = windows.GUID{Data1: 0x779a8ca3, Data2: 0xf099, Data3: 0x468f, Data4: [8]byte{0xb5, 0xd4, 0x83, 0x53, 0x5c, 0x46, 0x1c, 0x02}}
+	layerFlowEst4      = windows.GUID{Data1: 0xaf80470a, Data2: 0x5596, Data3: 0x4c13, Data4: [8]byte{0x99, 0x92, 0x53, 0x9e, 0x6f, 0xe5, 0x79, 0x67}}
+	layerFlowEst6      = windows.GUID{Data1: 0x7021d2b3, Data2: 0xdfa4, Data3: 0x406e, Data4: [8]byte{0xaf, 0xeb, 0x6a, 0xfa, 0xf7, 0xe7, 0x0e, 0xfd}}
 	providerKey        = windows.GUID{Data1: 0x502b4bcd, Data2: 0x7bf4, Data3: 0x4e46, Data4: [8]byte{0xb0, 0x06, 0x0c, 0x8b, 0xab, 0x4a, 0x27, 0x65}}
 	subLayerKey        = windows.GUID{Data1: 0x5af52f9c, Data2: 0xee4d, Data3: 0x4a9f, Data4: [8]byte{0x85, 0x99, 0x94, 0xf0, 0xf5, 0x9e, 0x28, 0x9b}}
 )
@@ -264,15 +280,49 @@ func layerLabel(g windows.GUID) string {
 		return "ALE_AUTH_RECV_ACCEPT_V4"
 	case layerRecv6:
 		return "ALE_AUTH_RECV_ACCEPT_V6"
+	case layerConnectRedir4:
+		return "ALE_CONNECT_REDIRECT_V4"
+	case layerConnectRedir6:
+		return "ALE_CONNECT_REDIRECT_V6"
+	case layerRecvRedir4:
+		return "ALE_AUTH_RECV_ACCEPT_REDIRECT_V4"
+	case layerRecvRedir6:
+		return "ALE_AUTH_RECV_ACCEPT_REDIRECT_V6"
+	case layerOutTran4:
+		return "OUTBOUND_TRANSPORT_V4"
+	case layerOutTran6:
+		return "OUTBOUND_TRANSPORT_V6"
+	case layerInTran4:
+		return "INBOUND_TRANSPORT_V4"
+	case layerInTran6:
+		return "INBOUND_TRANSPORT_V6"
+	case layerOutIP4:
+		return "OUTBOUND_IPPACKET_V4"
+	case layerOutIP6:
+		return "OUTBOUND_IPPACKET_V6"
+	case layerInIP4:
+		return "INBOUND_IPPACKET_V4"
+	case layerInIP6:
+		return "INBOUND_IPPACKET_V6"
+	case layerStream4:
+		return "STREAM_V4"
+	case layerStream6:
+		return "STREAM_V6"
+	case layerFlowEst4:
+		return "ALE_FLOW_ESTABLISHED_V4"
+	case layerFlowEst6:
+		return "ALE_FLOW_ESTABLISHED_V6"
 	}
 	return g.String()
 }
 func directionLabel(g windows.GUID) string {
 	switch g {
-	case layerConnect4, layerConnect6:
+	case layerConnect4, layerConnect6, layerConnectRedir4, layerConnectRedir6, layerOutTran4, layerOutTran6, layerOutIP4, layerOutIP6:
 		return "out"
-	case layerRecv4, layerRecv6:
+	case layerRecv4, layerRecv6, layerRecvRedir4, layerRecvRedir6, layerInTran4, layerInTran6, layerInIP4, layerInIP6:
 		return "in"
+	case layerStream4, layerStream6, layerFlowEst4, layerFlowEst6:
+		return "both"
 	}
 	return ""
 }
@@ -725,7 +775,66 @@ func ruleMetaFrom(f *filter) ruleMeta {
 	return m
 }
 
-func addRule(name, target, direction, actionName, protocol, portStr, priority, subLayerMode string, custom uint64) error {
+// layerSpec describes one placement layer for a rule and which of the three
+// conditions it supports.  Layers that lack a field in FWPM_LAYER0 (verified
+// by probing) drop the unsupported condition instead of failing with
+// FWP_E_CONDITION_NOT_FOUND (0x80320002).
+type layerSpec struct {
+	key   windows.GUID
+	label string
+	addr  bool
+	port  bool
+	proto bool
+}
+
+func ruleLayers(is4 bool, direction string, all bool) []layerSpec {
+	out := []layerSpec{
+		{layerConnect4, "ALE_AUTH_CONNECT_V4", true, true, true},
+		{layerConnectRedir4, "ALE_CONNECT_REDIRECT_V4", true, true, true},
+		{layerOutTran4, "OUTBOUND_TRANSPORT_V4", true, true, true},
+		{layerOutIP4, "OUTBOUND_IPPACKET_V4", true, false, false},
+		{layerStream4, "STREAM_V4", true, true, false},
+		{layerFlowEst4, "ALE_FLOW_ESTABLISHED_V4", true, true, true},
+	}
+	in := []layerSpec{
+		{layerRecv4, "ALE_AUTH_RECV_ACCEPT_V4", true, true, true},
+		{layerRecvRedir4, "ALE_AUTH_RECV_ACCEPT_REDIRECT_V4", true, true, true},
+		{layerInTran4, "INBOUND_TRANSPORT_V4", true, true, true},
+		{layerInIP4, "INBOUND_IPPACKET_V4", true, false, false},
+		{layerStream4, "STREAM_V4", true, true, false},
+		{layerFlowEst4, "ALE_FLOW_ESTABLISHED_V4", true, true, true},
+	}
+	if !is4 {
+		out = []layerSpec{
+			{layerConnect6, "ALE_AUTH_CONNECT_V6", true, true, true},
+			{layerConnectRedir6, "ALE_CONNECT_REDIRECT_V6", true, true, true},
+			{layerOutTran6, "OUTBOUND_TRANSPORT_V6", true, true, true},
+			{layerOutIP6, "OUTBOUND_IPPACKET_V6", true, false, false},
+			{layerStream6, "STREAM_V6", true, true, false},
+			{layerFlowEst6, "ALE_FLOW_ESTABLISHED_V6", true, true, true},
+		}
+		in = []layerSpec{
+			{layerRecv6, "ALE_AUTH_RECV_ACCEPT_V6", true, true, true},
+			{layerRecvRedir6, "ALE_AUTH_RECV_ACCEPT_REDIRECT_V6", true, true, true},
+			{layerInTran6, "INBOUND_TRANSPORT_V6", true, true, true},
+			{layerInIP6, "INBOUND_IPPACKET_V6", true, false, false},
+			{layerStream6, "STREAM_V6", true, true, false},
+			{layerFlowEst6, "ALE_FLOW_ESTABLISHED_V6", true, true, true},
+		}
+	}
+	if !all {
+		if direction == "in" {
+			return in[:1]
+		}
+		return out[:1]
+	}
+	if direction == "in" {
+		return in
+	}
+	return out
+}
+
+func addRule(name, target, direction, actionName, protocol, portStr, priority, subLayerMode string, custom uint64, allLayers bool) error {
 	prefix, err := parseTarget(target)
 	if err != nil {
 		return err
@@ -735,22 +844,16 @@ func addRule(name, target, direction, actionName, protocol, portStr, priority, s
 		return err
 	}
 	is4 := prefix.Addr().Is4()
-	layer := layerConnect4
-	if !is4 {
-		layer = layerConnect6
-	}
-	if direction == "in" {
-		if is4 {
-			layer = layerRecv4
-		} else {
-			layer = layerRecv6
-		}
-	}
 	name16, _ := utf16(name)
 	desc16, _ := utf16("created by wfpctl")
 	subnet := prefix.Masked()
-	conds := make([]condition, 0, 4)
+
+	// Build the address condition once; port and protocol conditions are
+	// built per placement layer because not every layer exposes those fields
+	// (e.g. IPPACKET layers have no port/protocol, STREAM layers have no
+	// protocol).  Value pointers stay alive for the whole function via keep.
 	var keep []any
+	var addrs []condition
 	if is4 {
 		b := subnet.Addr().As4()
 		var mask uint32
@@ -759,44 +862,15 @@ func addRule(name, target, direction, actionName, protocol, portStr, priority, s
 		}
 		v4 := &v4AddrMask{Addr: uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]), Mask: mask}
 		keep = append(keep, v4)
-		conds = append(conds, condition{FieldKey: fieldRemoteAddress, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpV4AddrMask, Value: uintptr(unsafe.Pointer(v4))}})
+		addrs = []condition{{FieldKey: fieldRemoteAddress, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpV4AddrMask, Value: uintptr(unsafe.Pointer(v4))}}}
 	} else {
 		v6 := &v6AddrMask{Addr: subnet.Addr().As16(), PrefixLength: uint8(subnet.Bits())}
 		keep = append(keep, v6)
-		conds = append(conds, condition{FieldKey: fieldRemoteAddress, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpV6AddrMask, Value: uintptr(unsafe.Pointer(v6))}})
+		addrs = []condition{{FieldKey: fieldRemoteAddress, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpV6AddrMask, Value: uintptr(unsafe.Pointer(v6))}}}
 	}
 	portLo, portHi, err := parsePortRange(portStr)
 	if err != nil {
 		return err
-	}
-	if portLo != 0 {
-		lo16, hi16 := uint16(portLo), uint16(portHi)
-		if portLo == portHi {
-			keep = append(keep, &lo16)
-			conds = append(conds, condition{FieldKey: fieldRemotePort, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&lo16))}})
-		} else {
-			keep = append(keep, &lo16, &hi16)
-			conds = append(conds,
-				condition{FieldKey: fieldRemotePort, MatchType: fwpMatchGreaterOrEq, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&lo16))}},
-				condition{FieldKey: fieldRemotePort, MatchType: fwpMatchLessOrEq, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&hi16))}},
-			)
-		}
-	}
-	if protocol != "" {
-		n, e := strconv.ParseUint(protocol, 10, 8)
-		if e != nil {
-			switch strings.ToLower(protocol) {
-			case "tcp":
-				n = 6
-			case "udp":
-				n = 17
-			default:
-				return fmt.Errorf("protocol must be tcp, udp, or a number")
-			}
-		}
-		pv := uint8(n)
-		keep = append(keep, &pv)
-		conds = append(conds, condition{FieldKey: fieldProtocol, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpUint8, Value: uintptr(unsafe.Pointer(&pv))}})
 	}
 	meta := ruleMeta{Target: target, Port: portStr, Protocol: strings.ToLower(protocol), Direction: direction, Action: actionName, Priority: priority, Weight: weight}
 	pd, pdBytes, err := makeProviderData(meta)
@@ -819,23 +893,59 @@ func addRule(name, target, direction, actionName, protocol, portStr, priority, s
 		}
 		s = subLayerKey
 	}
-	key, err := newGUID()
-	if err != nil {
-		return fmt.Errorf("generate filter key: %w", err)
+	for _, spec := range ruleLayers(is4, direction, allLayers) {
+		conds := append([]condition(nil), addrs...)
+		if spec.port && portLo != 0 {
+			lo16, hi16 := uint16(portLo), uint16(portHi)
+			if portLo == portHi {
+				keep = append(keep, &lo16)
+				conds = append(conds, condition{FieldKey: fieldRemotePort, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&lo16))}})
+			} else {
+				keep = append(keep, &lo16, &hi16)
+				conds = append(conds,
+					condition{FieldKey: fieldRemotePort, MatchType: fwpMatchGreaterOrEq, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&lo16))}},
+					condition{FieldKey: fieldRemotePort, MatchType: fwpMatchLessOrEq, Value: conditionValue{Type: fwpUint16, Value: uintptr(unsafe.Pointer(&hi16))}},
+				)
+			}
+		}
+		if spec.proto && protocol != "" {
+			n, e := strconv.ParseUint(protocol, 10, 8)
+			if e != nil {
+				switch strings.ToLower(protocol) {
+				case "tcp":
+					n = 6
+				case "udp":
+					n = 17
+				default:
+					return fmt.Errorf("protocol must be tcp, udp, or a number")
+				}
+			}
+			pv := uint8(n)
+			keep = append(keep, &pv)
+			conds = append(conds, condition{FieldKey: fieldProtocol, MatchType: fwpMatchEqual, Value: conditionValue{Type: fwpUint8, Value: uintptr(unsafe.Pointer(&pv))}})
+		}
+		key, err := newGUID()
+		if err != nil {
+			return fmt.Errorf("generate filter key: %w", err)
+		}
+		f := filter{FilterKey: key, Display: displayData{Name: name16, Description: desc16}, Flags: fwpmFilterPersistent, ProviderKey: &providerKey, ProviderData: pd, LayerKey: spec.key, SublayerKey: s, Weight: value{Type: fwpUint64, Value: uintptr(unsafe.Pointer(&weight))}, NumConditions: uint32(len(conds)), Conditions: &conds[0]}
+		if actionName == "allow" {
+			f.Action.Type = fwpActionPermit
+			f.Flags |= fwpmFilterClearActionRight
+		} else {
+			f.Action.Type = fwpActionBlock
+		}
+		var id uint64
+		err = call(filterAdd, uintptr(h), uintptr(unsafe.Pointer(&f)), 0, uintptr(unsafe.Pointer(&id)))
+		if err != nil {
+			return fmt.Errorf("add WFP filter to %s: %w", spec.label, err)
+		}
+		if allLayers {
+			fmt.Printf("filter added: layer=%-26s key=%s id=%d weight=%d\n", spec.label, f.FilterKey.String(), id, weight)
+		} else {
+			fmt.Printf("filter added: key=%s id=%d weight=%d\n", f.FilterKey.String(), id, weight)
+		}
 	}
-	f := filter{FilterKey: key, Display: displayData{Name: name16, Description: desc16}, Flags: fwpmFilterPersistent, ProviderKey: &providerKey, ProviderData: pd, LayerKey: layer, SublayerKey: s, Weight: value{Type: fwpUint64, Value: uintptr(unsafe.Pointer(&weight))}, NumConditions: uint32(len(conds)), Conditions: &conds[0]}
-	if actionName == "allow" {
-		f.Action.Type = fwpActionPermit
-		f.Flags |= fwpmFilterClearActionRight
-	} else {
-		f.Action.Type = fwpActionBlock
-	}
-	var id uint64
-	err = call(filterAdd, uintptr(h), uintptr(unsafe.Pointer(&f)), 0, uintptr(unsafe.Pointer(&id)))
-	if err != nil {
-		return fmt.Errorf("add WFP filter: %w", err)
-	}
-	fmt.Printf("filter added: key=%s id=%d weight=%d\n", f.FilterKey.String(), id, weight)
 	return nil
 }
 func parseGUID(s string) (windows.GUID, error) {
@@ -950,6 +1060,7 @@ func main() {
 		pri := fs.String("priority", "highest", "highest, lowest, or custom")
 		custom := fs.Uint64("weight", 0, "custom uint64 weight")
 		sub := fs.String("sublayer", "high", "high (own highest-free sublayer) or default")
+		allLayers := fs.Bool("all-layers", false, "add rule to every relevant WFP layer (redirect, transport, IP packet, stream, flow) for this direction")
 		_ = fs.Parse(os.Args[2:])
 		if *target == "" {
 			fs.Usage()
@@ -964,7 +1075,7 @@ func main() {
 		if *sub != "high" && *sub != "default" {
 			panic(errors.New("sublayer must be high or default"))
 		}
-		if err := addRule(*name, *target, *direction, *act, *proto, *port, *pri, *sub, *custom); err != nil {
+		if err := addRule(*name, *target, *direction, *act, *proto, *port, *pri, *sub, *custom, *allLayers); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

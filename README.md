@@ -43,7 +43,7 @@ Adding or deleting WFP filters requires Administrator privileges.
 ```
 wfpctl add      [-name <name>] -target <ip|cidr> [-direction in|out] [-action block|allow]
                 [-protocol tcp|udp|<number>] [-port <port|range>] [-priority highest|lowest|custom]
-                [-weight <uint64>] [-sublayer high|default]
+                [-weight <uint64>] [-sublayer high|default] [-all-layers]
 wfpctl delete   -key <filter-GUID>
 wfpctl list     [-json] [-all] [-sublayer <GUID|name>]
 wfpctl sublayers [-json] [-delete [-key <sub-layer-GUID>]]
@@ -82,6 +82,15 @@ wfpctl.exe add -name plain-rule -target 203.0.113.30 -direction out -action bloc
 # all other (block) rules. IPv6 is unaffected by 0.0.0.0/0.
 wfpctl.exe add -name allow-all-tcp-out -target 0.0.0.0/0 -direction out -action allow -protocol tcp -port 1-65535
 wfpctl.exe add -name allow-all-tcp-in  -target 0.0.0.0/0 -direction in  -action allow -protocol tcp -port 1-65535
+
+# Place the same rule on every relevant WFP layer for this direction (ALE
+# auth + redirects, transport, IP packet, stream, flow-established). Use this
+# to overtake rules a competing firewall product added at *other* layers: a
+# hard-permit only clears action rights within its own layer, so it must be
+# present on every layer the other product uses.
+wfpctl.exe add -name block-every-layer -target 203.0.113.10 -direction out -action block -all-layers
+# `allow` works the same way: the permit + CLEAR_ACTION_RIGHT lands on every layer too.
+wfpctl.exe add -name permit-every-layer -target 203.0.113.10 -direction in -action allow -all-layers
 ```
 
 Rules are matched by AND: the action applies only when *all* given conditions hold.
@@ -100,6 +109,7 @@ Omit `-port` and/or `-protocol` to skip those conditions.
 | `-priority` | `highest`, `lowest`, or `custom` | `highest` |
 | `-weight` | Custom uint64 filter weight for `-priority custom` | `0` |
 | `-sublayer` | `high` (own priority sub-layer) or `default` (built-in sub-layer) | `high` |
+| `-all-layers` | Also place the rule on redirect, transport, IP-packet, stream and flow-established layers (per direction/version). Conditions the layer does not expose (e.g. `-port` on IP-packet layers) are skipped, never rejected. | `false` |
 
 ### Deleting
 
@@ -197,6 +207,13 @@ connection from lower sub-layers *within* those `ALE_AUTH_*` layers. It cannot u
 - connections created later by a proxy / VPN / TUN, which are new connections that never matched the
   original `ALE_AUTH_*` filter in the first place.
 
+To overtake a vendor at all of these layers at once, add the rule with `-all-layers`: the same
+block/allow is placed on the ALE auth, redirect (`ALE_CONNECT_REDIRECT` / `ALE_AUTH_RECV_ACCEPT_REDIRECT`),
+transport, IP-packet, stream and flow-established layers for the requested direction and IP version.
+Because a hard permit is layer-local, this is how a single `wfpctl add` command can shield a connection
+from a vendor working in *any* of those layers (at the next layer the vendor's callout can still run, so
+this still is not a global override — just a much wider one).
+
 So the practical meaning is: **after a wfpctl hard allow matches, the connection is no longer affected by
 lower sub-layers of the same `ALE_AUTH_*` layer, but it can still have been redirected or terminated by a
 vendor working in earlier `ALE_*` layers, and can still re-enter that vendor on later transport/stream
@@ -242,7 +259,8 @@ An optional PyQt6 GUI is available in `gui/`. It calls the CLI backend and provi
 - Rule table with right-click context menu (delete, copy GUID, refresh)
 - Sublayer filter drop-down: show only wfpctl rules, all sublayers, or a specific sublayer
 - Rule table columns for ID / name / direction / action / layer / sublayer / weight / GUID
-- Add-rule dialog with fields for name, target, port, protocol, direction, action, priority
+- Add-rule dialog with fields for name, target, port, protocol, direction, action, priority,
+  plus an *"Apply to all relevant layers"* checkbox (maps to the CLI's `-all-layers`)
 - Export / import rules as JSON
 - Sublayer viewer with delete support
 - Status bar with rule count and operation feedback

@@ -3,6 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -56,6 +57,9 @@ class AddRuleDialog(QDialog):
         self.action_combo.setCurrentIndex(0 if default_action == "block" else 1)
         form.addRow(tr("action_label"), self.action_combo)
 
+        self.all_layers_check = QCheckBox(tr("all_layers_label"))
+        form.addRow("", self.all_layers_check)
+
         self.priority_combo = QComboBox()
         self.priority_combo.addItems([tr("prio_highest"), tr("prio_lowest"), tr("prio_custom")])
         form.addRow(tr("priority_label"), self.priority_combo)
@@ -101,6 +105,7 @@ class AddRuleDialog(QDialog):
             "protocol": proto_map[self.protocol_combo.currentIndex()],
             "direction": dir_map[self.direction_combo.currentIndex()],
             "action": act_map[self.action_combo.currentIndex()],
+            "all_layers": self.all_layers_check.isChecked(),
             "priority": prio_map[self.priority_combo.currentIndex()],
             "weight": self.weight_spin.value(),
         }

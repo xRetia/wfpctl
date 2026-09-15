@@ -37,6 +37,22 @@ def layer_short(layer: str) -> str:
         "ALE_AUTH_CONNECT_V6": tr("layer_out6"),
         "ALE_AUTH_RECV_ACCEPT_V4": tr("layer_in4"),
         "ALE_AUTH_RECV_ACCEPT_V6": tr("layer_in6"),
+        "ALE_CONNECT_REDIRECT_V4": tr("layer_conn_redir4"),
+        "ALE_CONNECT_REDIRECT_V6": tr("layer_conn_redir6"),
+        "ALE_AUTH_RECV_ACCEPT_REDIRECT_V4": tr("layer_recv_redir4"),
+        "ALE_AUTH_RECV_ACCEPT_REDIRECT_V6": tr("layer_recv_redir6"),
+        "OUTBOUND_TRANSPORT_V4": tr("layer_out_tran4"),
+        "OUTBOUND_TRANSPORT_V6": tr("layer_out_tran6"),
+        "INBOUND_TRANSPORT_V4": tr("layer_in_tran4"),
+        "INBOUND_TRANSPORT_V6": tr("layer_in_tran6"),
+        "OUTBOUND_IPPACKET_V4": tr("layer_out_ip4"),
+        "OUTBOUND_IPPACKET_V6": tr("layer_out_ip6"),
+        "INBOUND_IPPACKET_V4": tr("layer_in_ip4"),
+        "INBOUND_IPPACKET_V6": tr("layer_in_ip6"),
+        "STREAM_V4": tr("layer_stream4"),
+        "STREAM_V6": tr("layer_stream6"),
+        "ALE_FLOW_ESTABLISHED_V4": tr("layer_flow4"),
+        "ALE_FLOW_ESTABLISHED_V6": tr("layer_flow6"),
     }.get(layer, layer)
 
 
@@ -373,6 +389,7 @@ class MainWindow(QMainWindow):
                 action=vals["action"],
                 priority=vals["priority"],
                 weight=vals["weight"],
+                all_layers=vals["all_layers"],
             )
             QMessageBox.information(self, tr("op_success_title"), output)
             self._refresh_rules()

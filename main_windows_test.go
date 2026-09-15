@@ -10,19 +10,19 @@ import (
 
 func TestConstantsMatchWdk(t *testing.T) {
 	cases := map[string]struct{ got, want uint32 }{
-		"FWP_ACTION_BLOCK":  {fwpActionBlock, 0x00001001},
-		"FWP_ACTION_PERMIT": {fwpActionPermit, 0x00001002},
-		"FWP_EMPTY":         {fwpEmpty, 0},
-		"FWP_UINT8":         {fwpUint8, 1},
-		"FWP_UINT16":        {fwpUint16, 2},
-		"FWP_UINT64":        {fwpUint64, 4},
-		"FWP_V4_ADDR_MASK":  {fwpV4AddrMask, 0x100},
-		"FWP_V6_ADDR_MASK":  {fwpV6AddrMask, 0x101},
-		"FWP_MATCH_EQUAL":   {fwpMatchEqual, 0},
-		"FWP_MATCH_GREATER_OR_EQUAL": {fwpMatchGreaterOrEq, 3},
-		"FWP_MATCH_LESS_OR_EQUAL":    {fwpMatchLessOrEq, 4},
-		"FWPM_FILTER_FLAG_PERSISTENT":           {fwpmFilterPersistent, 0x00000001},
-		"FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT":   {fwpmFilterClearActionRight, 0x00000008},
+		"FWP_ACTION_BLOCK":                    {fwpActionBlock, 0x00001001},
+		"FWP_ACTION_PERMIT":                   {fwpActionPermit, 0x00001002},
+		"FWP_EMPTY":                           {fwpEmpty, 0},
+		"FWP_UINT8":                           {fwpUint8, 1},
+		"FWP_UINT16":                          {fwpUint16, 2},
+		"FWP_UINT64":                          {fwpUint64, 4},
+		"FWP_V4_ADDR_MASK":                    {fwpV4AddrMask, 0x100},
+		"FWP_V6_ADDR_MASK":                    {fwpV6AddrMask, 0x101},
+		"FWP_MATCH_EQUAL":                     {fwpMatchEqual, 0},
+		"FWP_MATCH_GREATER_OR_EQUAL":          {fwpMatchGreaterOrEq, 3},
+		"FWP_MATCH_LESS_OR_EQUAL":             {fwpMatchLessOrEq, 4},
+		"FWPM_FILTER_FLAG_PERSISTENT":         {fwpmFilterPersistent, 0x00000001},
+		"FWPM_FILTER_FLAG_CLEAR_ACTION_RIGHT": {fwpmFilterClearActionRight, 0x00000008},
 	}
 	for name, c := range cases {
 		if c.got != c.want {
@@ -195,5 +195,57 @@ func TestRuleMetaFromEmptyOrBad(t *testing.T) {
 	bad := &filter{ProviderData: byteBlob{Size: 11, Data: &([]byte("not-json!..")[0])}}
 	if got := ruleMetaFrom(bad); got != (ruleMeta{}) {
 		t.Errorf("bad blob = %+v, want zero", got)
+	}
+}
+
+func TestRuleLayersSelection(t *testing.T) {
+	cases := []struct {
+		name      string
+		is4       bool
+		direction string
+		all       bool
+		want      []string
+	}{
+		{"single out v4", true, "out", false, []string{"ALE_AUTH_CONNECT_V4"}},
+		{"single out v6", false, "out", false, []string{"ALE_AUTH_CONNECT_V6"}},
+		{"single in v4", true, "in", false, []string{"ALE_AUTH_RECV_ACCEPT_V4"}},
+		{"single in v6", false, "in", false, []string{"ALE_AUTH_RECV_ACCEPT_V6"}},
+		{"all out v4", true, "out", true, []string{"ALE_AUTH_CONNECT_V4", "ALE_CONNECT_REDIRECT_V4", "OUTBOUND_TRANSPORT_V4", "OUTBOUND_IPPACKET_V4", "STREAM_V4", "ALE_FLOW_ESTABLISHED_V4"}},
+		{"all out v6", false, "out", true, []string{"ALE_AUTH_CONNECT_V6", "ALE_CONNECT_REDIRECT_V6", "OUTBOUND_TRANSPORT_V6", "OUTBOUND_IPPACKET_V6", "STREAM_V6", "ALE_FLOW_ESTABLISHED_V6"}},
+		{"all in v4", true, "in", true, []string{"ALE_AUTH_RECV_ACCEPT_V4", "ALE_AUTH_RECV_ACCEPT_REDIRECT_V4", "INBOUND_TRANSPORT_V4", "INBOUND_IPPACKET_V4", "STREAM_V4", "ALE_FLOW_ESTABLISHED_V4"}},
+		{"all in v6", false, "in", true, []string{"ALE_AUTH_RECV_ACCEPT_V6", "ALE_AUTH_RECV_ACCEPT_REDIRECT_V6", "INBOUND_TRANSPORT_V6", "INBOUND_IPPACKET_V6", "STREAM_V6", "ALE_FLOW_ESTABLISHED_V6"}},
+	}
+	for _, c := range cases {
+		specs := ruleLayers(c.is4, c.direction, c.all)
+		got := make([]string, len(specs))
+		for i, s := range specs {
+			got[i] = s.label
+		}
+		if len(got) != len(c.want) {
+			t.Errorf("%s: got %d layers %v, want %d %v", c.name, len(got), got, len(c.want), c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("%s: layer[%d] = %s, want %s", c.name, i, got[i], c.want[i])
+			}
+		}
+	}
+}
+
+func TestRuleLayersCapabilities(t *testing.T) {
+	// The whole point of the capability table: every layer must support the
+	// address condition (the rule is always target-address based), and only
+	// layers that expose port/protocol fields may use those conditions.
+	for _, c := range []bool{true, false} {
+		for _, d := range []string{"out", "in"} {
+			for _, all := range []bool{false, true} {
+				for _, s := range ruleLayers(c, d, all) {
+					if !s.addr {
+						t.Errorf("%s: missing address condition support", s.label)
+					}
+				}
+			}
+		}
 	}
 }
