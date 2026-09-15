@@ -27,20 +27,25 @@ from PyQt6.QtWidgets import (
 from wfpctl_gui.dialogs import AboutDialog, AddRuleDialog, SublayersDialog
 from wfpctl_gui.engine import Engine
 from wfpctl_gui.icons import app_icon
+from wfpctl_gui import i18n
+from wfpctl_gui.i18n import tr
 
 
-LAYER_SHORT = {
-    "ALE_AUTH_CONNECT_V4": "出站 V4",
-    "ALE_AUTH_CONNECT_V6": "出站 V6",
-    "ALE_AUTH_RECV_ACCEPT_V4": "入站 V4",
-    "ALE_AUTH_RECV_ACCEPT_V6": "入站 V6",
-}
+def layer_short(layer: str) -> str:
+    return {
+        "ALE_AUTH_CONNECT_V4": tr("layer_out4"),
+        "ALE_AUTH_CONNECT_V6": tr("layer_out6"),
+        "ALE_AUTH_RECV_ACCEPT_V4": tr("layer_in4"),
+        "ALE_AUTH_RECV_ACCEPT_V6": tr("layer_in6"),
+    }.get(layer, layer)
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("wfpctl - Windows 防火墙控制台 (管理员)")
+        i18n.set_language(i18n.load_language())
+        self._rule_count = 0
+        self.setWindowTitle(tr("app_title"))
         self.setWindowIcon(app_icon())
         self.resize(960, 600)
 
@@ -50,83 +55,141 @@ class MainWindow(QMainWindow):
         self._sub_filter = ""
 
         self._build_menu()
+        self._build_lang_menu()
         self._build_toolbar()
         self._build_table()
         self._build_statusbar()
         self._connect_signals()
+        self._apply_language()
         self._refresh_sublayers()
         self._refresh_rules()
+
+    def _apply_language(self) -> None:
+        self.setWindowTitle(tr("app_title"))
+        if hasattr(self, "_file_menu"):
+            self._file_menu.setTitle(tr("file"))
+            self._rule_menu.setTitle(tr("rules"))
+            self._tool_menu.setTitle(tr("tools"))
+            self._help_menu.setTitle(tr("help"))
+            self._lang_menu.setTitle(tr("language"))
+        for attr, key in (
+            ("_act_refresh", "refresh_rules"),
+            ("_act_export", "export_rules"),
+            ("_act_import", "import_rules"),
+            ("_act_quit", "quit"),
+            ("_act_add_block", "add_block_rule"),
+            ("_act_add_allow", "add_allow_rule"),
+            ("_act_delete", "delete_selected"),
+            ("_act_sublayers", "view_sublayers"),
+            ("_act_cleanup", "clear_all_rules"),
+            ("_act_about", "about"),
+        ):
+            if hasattr(self, attr):
+                getattr(self, attr).setText(tr(key))
+        if hasattr(self, "_tb"):
+            self._tb.setWindowTitle(tr("toolbar"))
+        if hasattr(self, "_table"):
+            self._table.setHorizontalHeaderLabels(
+                [tr(k) for k in ("col_id", "col_name", "col_dir", "col_action", "col_layer", "col_sublayer", "col_weight", "col_guid")]
+            )
+        if hasattr(self, "_filter_combo"):
+            self._filter_combo.setItemText(0, tr("filter_only"))
+            self._filter_combo.setItemText(1, tr("filter_all"))
+            self._filter_combo.setToolTip(tr("filter_tip"))
+        if hasattr(self, "_status_label"):
+            self._status_label.setText(tr("status_rules").format(n=self._rule_count))
+        if hasattr(self, "_lang_act_en"):
+            self._lang_act_en.setText(tr("lang_english"))
+            self._lang_act_zh.setText(tr("lang_chinese"))
+            self._lang_act_en.setChecked(i18n.current_language() == i18n.EN)
+            self._lang_act_zh.setChecked(i18n.current_language() == i18n.ZH)
 
     def _build_menu(self) -> None:
         mb = self.menuBar()
 
         style = self.style()
 
-        file_menu = mb.addMenu("文件")
-        self._act_refresh = QAction(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload), "刷新规则", self)
+        self._file_menu = mb.addMenu(tr("file"))
+        self._act_refresh = QAction(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload), tr("refresh_rules"), self)
         self._act_refresh.setShortcut("F5")
-        file_menu.addAction(self._act_refresh)
-        file_menu.addSeparator()
-        self._act_export = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "导出规则…", self)
+        self._file_menu.addAction(self._act_refresh)
+        self._file_menu.addSeparator()
+        self._act_export = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), tr("export_rules"), self)
         self._act_export.setShortcut("Ctrl+E")
-        file_menu.addAction(self._act_export)
-        self._act_import = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "导入规则…", self)
+        self._file_menu.addAction(self._act_export)
+        self._act_import = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), tr("import_rules"), self)
         self._act_import.setShortcut("Ctrl+I")
-        file_menu.addAction(self._act_import)
-        file_menu.addSeparator()
-        act_quit = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "退出", self)
-        act_quit.setShortcut("Alt+F4")
-        act_quit.triggered.connect(self.close)
-        file_menu.addAction(act_quit)
+        self._file_menu.addAction(self._act_import)
+        self._file_menu.addSeparator()
+        self._act_quit = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), tr("quit"), self)
+        self._act_quit.setShortcut("Alt+F4")
+        self._act_quit.triggered.connect(self.close)
+        self._file_menu.addAction(self._act_quit)
 
-        rule_menu = mb.addMenu("规则")
-        self._act_add_block = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical), "添加阻止规则", self)
-        rule_menu.addAction(self._act_add_block)
-        self._act_add_allow = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation), "添加允许规则", self)
-        rule_menu.addAction(self._act_add_allow)
-        rule_menu.addSeparator()
-        self._act_delete = QAction(style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "删除所选", self)
-        rule_menu.addAction(self._act_delete)
+        self._rule_menu = mb.addMenu(tr("rules"))
+        self._act_add_block = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxCritical), tr("add_block_rule"), self)
+        self._rule_menu.addAction(self._act_add_block)
+        self._act_add_allow = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation), tr("add_allow_rule"), self)
+        self._rule_menu.addAction(self._act_add_allow)
+        self._rule_menu.addSeparator()
+        self._act_delete = QAction(style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon), tr("delete_selected"), self)
+        self._rule_menu.addAction(self._act_delete)
 
-        tool_menu = mb.addMenu("工具")
-        self._act_sublayers = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "查看子层", self)
-        tool_menu.addAction(self._act_sublayers)
-        tool_menu.addSeparator()
-        self._act_cleanup = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), "清理全部规则", self)
-        tool_menu.addAction(self._act_cleanup)
+        self._tool_menu = mb.addMenu(tr("tools"))
+        self._act_sublayers = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), tr("view_sublayers"), self)
+        self._tool_menu.addAction(self._act_sublayers)
+        self._tool_menu.addSeparator()
+        self._act_cleanup = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogDiscardButton), tr("clear_all_rules"), self)
+        self._tool_menu.addAction(self._act_cleanup)
 
-        help_menu = mb.addMenu("帮助")
-        self._act_about = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxQuestion), "关于", self)
-        help_menu.addAction(self._act_about)
+        self._help_menu = mb.addMenu(tr("help"))
+        self._act_about = QAction(style.standardIcon(QStyle.StandardPixmap.SP_MessageBoxQuestion), tr("about"), self)
+        self._help_menu.addAction(self._act_about)
+
+        self._lang_menu = mb.addMenu(tr("language"))
+
+    def _build_lang_menu(self) -> None:
+        self._lang_act_en = QAction(tr("lang_english"), self, checkable=True, checked=True)
+        self._lang_act_zh = QAction(tr("lang_chinese"), self, checkable=True, checked=False)
+        self._lang_act_en.triggered.connect(lambda: self._switch_language(i18n.EN))
+        self._lang_act_zh.triggered.connect(lambda: self._switch_language(i18n.ZH))
+        self._lang_menu.addAction(self._lang_act_en)
+        self._lang_menu.addAction(self._lang_act_zh)
+
+    def _switch_language(self, lang: str) -> None:
+        i18n.set_language(lang)
+        i18n.save_language(lang)
+        self._apply_language()
 
     def _build_toolbar(self) -> None:
-        tb = QToolBar("工具栏")
-        tb.setMovable(False)
-        tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-        self.addToolBar(tb)
+        self._tb = QToolBar(tr("toolbar"))
+        self._tb.setMovable(False)
+        self._tb.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        self.addToolBar(self._tb)
 
         style = self.style()
 
-        tb.addAction(self._act_add_block)
-        tb.addAction(self._act_add_allow)
-        tb.addAction(self._act_delete)
-        tb.addSeparator()
-        tb.addAction(self._act_refresh)
-        tb.addAction(self._act_export)
-        tb.addAction(self._act_import)
-        tb.addSeparator()
-        tb.addAction(self._act_sublayers)
-        tb.addAction(self._act_cleanup)
+        self._tb.addAction(self._act_add_block)
+        self._tb.addAction(self._act_add_allow)
+        self._tb.addAction(self._act_delete)
+        self._tb.addSeparator()
+        self._tb.addAction(self._act_refresh)
+        self._tb.addAction(self._act_export)
+        self._tb.addAction(self._act_import)
+        self._tb.addSeparator()
+        self._tb.addAction(self._act_sublayers)
+        self._tb.addAction(self._act_cleanup)
 
     def _build_table(self) -> None:
         self._table = QTableWidget()
         self._table.setColumnCount(8)
-        self._table.setHorizontalHeaderLabels(["ID", "名称", "方向", "动作", "层", "子层", "权重", "GUID"])
+        self._table.setHorizontalHeaderLabels(
+            [tr(k) for k in ("col_id", "col_name", "col_dir", "col_action", "col_layer", "col_sublayer", "col_weight", "col_guid")]
+        )
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.verticalHeader().setVisible(False)
-        header = self._table.horizontalHeader()
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.resizeSection(0, 80)
@@ -146,9 +209,9 @@ class MainWindow(QMainWindow):
         )
 
         self._filter_combo = QComboBox()
-        self._filter_combo.addItem("仅 wfpctl 规则", "")
-        self._filter_combo.addItem("所有子层 (All)", "__all__")
-        self._filter_combo.setToolTip("按子层筛选规则")
+        self._filter_combo.addItem(tr("filter_only"), "")
+        self._filter_combo.addItem(tr("filter_all"), "__all__")
+        self._filter_combo.setToolTip(tr("filter_tip"))
         self._filter_combo.currentIndexChanged.connect(self._on_filter_changed)
 
         container = QWidget()
@@ -160,7 +223,7 @@ class MainWindow(QMainWindow):
 
     def _build_statusbar(self) -> None:
         sb = self.statusBar()
-        self._status_label = QLabel("规则数: 0")
+        self._status_label = QLabel(tr("status_rules").format(n=0))
         sb.addWidget(self._status_label)
         self._status_msg = QLabel("")
         sb.addPermanentWidget(self._status_msg)
@@ -194,8 +257,8 @@ class MainWindow(QMainWindow):
             sublayers = []
         self._filter_combo.blockSignals(True)
         self._filter_combo.clear()
-        self._filter_combo.addItem("仅 wfpctl 规则", "")
-        self._filter_combo.addItem("所有子层 (All)", "__all__")
+        self._filter_combo.addItem(tr("filter_only"), "")
+        self._filter_combo.addItem(tr("filter_all"), "__all__")
         for s in sublayers:
             name = s.get("name", "")
             key = s.get("key", "")
@@ -217,8 +280,8 @@ class MainWindow(QMainWindow):
         if not self._engine.available:
             QMessageBox.critical(
                 self,
-                "引擎未找到",
-                "未找到 wfpctl 可执行文件。\n请确保 wfpctl.exe 在程序目录或 PATH 中。",
+                tr("eng_not_found"),
+                tr("eng_not_found_msg"),
             )
             return
 
@@ -235,7 +298,7 @@ class MainWindow(QMainWindow):
                 r.get("name", ""),
                 r.get("direction", ""),
                 r.get("action", ""),
-                LAYER_SHORT.get(r.get("layer", ""), r.get("layer", "")),
+                layer_short(r.get("layer", "")),
                 r.get("sublayer", ""),
                 r.get("weight", ""),
                 r.get("key", ""),
@@ -251,48 +314,49 @@ class MainWindow(QMainWindow):
                     item.setData(Qt.ItemDataRole.UserRole, r.get("key", ""))
                 self._table.setItem(i, j, item)
 
-        self._set_status(f"规则数: {len(rules)}", temporary=False)
+        self._rule_count = len(rules)
+        self._set_status(tr("status_rules").format(n=self._rule_count), temporary=False)
 
     def _export_rules(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "导出规则",
+            tr("export_title"),
             "wfpctl-rules.json",
-            "规则文件 (*.json);;所有文件 (*)",
+            tr("export_filter"),
         )
         if not path:
             return
         try:
             count = self._engine.export_rules(path)
-            QMessageBox.information(self, "导出完成", f"已导出 {count} 条规则到:\n{path}")
-            self._set_status(f"已导出 {count} 条规则")
+            QMessageBox.information(self, tr("export_done_title"), tr("export_done_msg").format(count=count, path=path))
+            self._set_status(tr("export_status").format(count=count))
         except Exception as exc:
-            QMessageBox.critical(self, "导出失败", str(exc))
+            QMessageBox.critical(self, tr("export_fail_title"), str(exc))
 
     def _import_rules(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "导入规则",
+            tr("import_title"),
             "",
-            "规则文件 (*.json);;所有文件 (*)",
+            tr("export_filter"),
         )
         if not path:
             return
         try:
             result = self._engine.import_rules(path)
             lines = [
-                f"新增: {result.get('added', 0)}",
-                f"跳过(已存在): {result.get('skipped', 0)}",
-                f"失败: {result.get('failed', 0)}",
+                tr("import_added").format(n=result.get("added", 0)),
+                tr("import_skipped").format(n=result.get("skipped", 0)),
+                tr("import_failed").format(n=result.get("failed", 0)),
             ]
             errors = result.get("errors")
             if errors:
-                lines.append("错误详情:")
+                lines.append(tr("error_details"))
                 lines.append(str(errors))
-            QMessageBox.information(self, "导入完成", "\n".join(lines))
+            QMessageBox.information(self, tr("import_done_title"), "\n".join(lines))
             self._refresh_rules()
         except Exception as exc:
-            QMessageBox.critical(self, "导入失败", str(exc))
+            QMessageBox.critical(self, tr("import_fail_title"), str(exc))
 
     def _add_rule(self, default_action: str) -> None:
         dlg = AddRuleDialog(default_action=default_action, parent=self)
@@ -310,10 +374,10 @@ class MainWindow(QMainWindow):
                 priority=vals["priority"],
                 weight=vals["weight"],
             )
-            QMessageBox.information(self, "操作成功", output)
+            QMessageBox.information(self, tr("op_success_title"), output)
             self._refresh_rules()
         except Exception as exc:
-            QMessageBox.critical(self, "操作失败", str(exc))
+            QMessageBox.critical(self, tr("op_fail_title"), str(exc))
 
     def _delete_selected(self) -> None:
         rows = self._table.selectionModel().selectedRows()
@@ -321,8 +385,8 @@ class MainWindow(QMainWindow):
             return
         confirm = QMessageBox.question(
             self,
-            "确认删除",
-            f"确定要删除选中的 {len(rows)} 条规则吗？",
+            tr("confirm_delete_title"),
+            tr("confirm_delete_msg").format(n=len(rows)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
@@ -339,15 +403,15 @@ class MainWindow(QMainWindow):
                 errors.append(msg)
 
         if errors:
-            QMessageBox.critical(self, "删除错误", "\n".join(errors))
+            QMessageBox.critical(self, tr("delete_error_title"), "\n".join(errors))
         else:
-            self._set_status("已删除所选规则")
+            self._set_status(tr("deleted_status"))
 
         self._refresh_rules()
 
     def _show_sublayers(self) -> None:
         if not self._engine.available:
-            QMessageBox.critical(self, "引擎未找到", "未找到 wfpctl 可执行文件")
+            QMessageBox.critical(self, tr("eng_not_found"), tr("eng_not_found_msg"))
             return
         dlg = SublayersDialog(self._engine, parent=self)
         dlg.exec()
@@ -355,8 +419,8 @@ class MainWindow(QMainWindow):
     def _cleanup_all(self) -> None:
         confirm = QMessageBox.question(
             self,
-            "确认清理",
-            "确定要清理全部规则吗？\n这将移除 wfpctl 的子层、提供者和所有规则。",
+            tr("confirm_cleanup_title"),
+            tr("confirm_cleanup_msg"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
@@ -364,11 +428,11 @@ class MainWindow(QMainWindow):
         try:
             ok, msg = self._engine.delete_sublayer("")
             if ok:
-                QMessageBox.information(self, "清理完成", msg or "清理完成")
+                QMessageBox.information(self, tr("cleanup_done_title"), msg or tr("cleanup_done_title"))
             else:
-                QMessageBox.critical(self, "清理失败", msg)
+                QMessageBox.critical(self, tr("cleanup_fail_title"), msg)
         except Exception as exc:
-            QMessageBox.critical(self, "清理失败", str(exc))
+            QMessageBox.critical(self, tr("cleanup_fail_title"), str(exc))
         self._refresh_rules()
 
     def _show_about(self) -> None:
@@ -379,21 +443,21 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         style = self.style()
 
-        act_del = QAction(style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "删除所选", self)
+        act_del = QAction(style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon), tr("delete_selected"), self)
         act_del.triggered.connect(self._delete_selected)
         act_del.setEnabled(bool(self._table.selectionModel().selectedRows()))
         menu.addAction(act_del)
 
         menu.addSeparator()
 
-        act_copy = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView), "复制 GUID", self)
+        act_copy = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView), tr("copy_guid"), self)
         act_copy.triggered.connect(self._copy_guid)
         act_copy.setEnabled(bool(self._table.selectionModel().selectedRows()))
         menu.addAction(act_copy)
 
         menu.addSeparator()
 
-        act_refresh = QAction(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload), "刷新", self)
+        act_refresh = QAction(style.standardIcon(QStyle.StandardPixmap.SP_BrowserReload), tr("refresh_ctx"), self)
         act_refresh.triggered.connect(self._refresh_rules)
         menu.addAction(act_refresh)
 
@@ -407,4 +471,4 @@ class MainWindow(QMainWindow):
         if key_item:
             guid = key_item.data(Qt.ItemDataRole.UserRole) or key_item.text()
             QApplication.clipboard().setText(guid)
-            self._set_status("已复制 GUID")
+            self._set_status(tr("copied_guid"))

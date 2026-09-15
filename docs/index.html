@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>wfpctl — Windows Filtering Platform firewall CLI + GUI</title>
+<meta name="description" content="wfpctl is a native Windows CLI (Go) and PyQt6 GUI for creating and removing high-priority inbound/outbound rules on the Windows Filtering Platform (WFP)."/>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    margin: 0; padding: 24px 16px 64px;
+    background: #0f172a; color: #e2e8f0;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  main { width: 100%; max-width: 860px; }
+  h1 { font-size: 34px; margin: 40px 0 4px; color: #fff; }
+  .subtitle { color: #94a3b8; margin-bottom: 32px; }
+  a { color: #38bdf8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 24px 0; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h2 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 0; color: #94a3b8; font-size: 14px; }
+  .badges { margin: 20px 0; }
+  .badges img { margin-right: 6px; }
+  code {
+    background: #0b1220; border: 1px solid #334155; border-radius: 6px;
+    padding: 2px 6px; font-size: 13px;
+  }
+  pre {
+    background: #0b1220; border: 1px solid #334155; border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.5;
+  }
+  .btn {
+    display: inline-block; background: #0284c7; color: #fff !important;
+    padding: 10px 18px; border-radius: 8px; font-weight: 600; margin: 6px 8px 6px 0;
+  }
+  .btn:hover { background: #0ea5e9; text-decoration: none; }
+  footer { margin-top: 48px; color: #64748b; font-size: 13px; }
+  h2.section { margin-top: 40px; }
+  figure { margin: 24px 0; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid #334155; border-radius: 10px; }
+  figcaption { color: #94a3b8; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>wfpctl</h1>
+  <p class="subtitle">Native Windows CLI (Go) + PyQt6 GUI for high-priority firewall rules on the Windows Filtering Platform (WFP).</p>
+
+  <div class="badges">
+    <img alt="Go" src="https://img.shields.io/badge/Go-100%25-00ADD8?style=flat-square"/>
+    <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20amd64%20%7C%20386%20%7C%20arm64-blue?style=flat-square"/>
+    <img alt="License" src="https://img.shields.io/badge/license-view%20NOTICE-9cf?style=flat-square"/>
+  </div>
+
+  <a class="btn" href="https://github.com/xRetia/wfpctl/releases">Download</a>
+  <a class="btn" href="https://github.com/xRetia/wfpctl">Source on GitHub</a>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Pure user-mode</h2>
+      <p>Talks to <code>fwpuclnt.dll</code> directly — no kernel driver, no service.</p>
+    </div>
+    <div class="card">
+      <h2>Highest priority</h2>
+      <p>Picks the free sub-layer weight dynamically and adds filters at <code>uint64 Max</code>.</p>
+    </div>
+    <div class="card">
+      <h2>Bilingual GUI</h2>
+      <p>English / 中文 switchable from the menu; rules can be exported / imported as JSON.</p>
+    </div>
+    <div class="card">
+      <h2>Wide targets</h2>
+      <p>IPv4 &amp; IPv6, CIDR, port or port range, protocol, in/out, block/allow.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Usage</h2>
+  <pre>wfpctl add      [-name &lt;name&gt;] -target &lt;ip|cidr&gt; [-direction in|out] [-action block|allow]
+                [-protocol tcp|udp|&lt;number&gt;] [-port &lt;port|range&gt;] [-priority highest|lowest|custom]
+                [-weight &lt;uint64&gt;] [-sublayer high|default]
+wfpctl delete   -key &lt;filter-GUID&gt;
+wfpctl list     [-json] [-all] [-sublayer &lt;GUID|name&gt;]
+wfpctl sublayers [-json] [-delete [-key &lt;sub-layer-GUID&gt;]]
+wfpctl version
+wfpctl help</pre>
+
+  <h2 class="section">Screenshot</h2>
+  <figure>
+    <img src="screenshot-en.png" alt="wfpctl GUI (English)"/>
+    <figcaption>wfpctl GUI — English (默认界面为英文，菜单可切换 中文 / English)</figcaption>
+  </figure>
+
+  <h2 class="section">Example</h2>
+  <pre># Block outbound HTTPS to a subnet, highest priority
+wfpctl.exe add -name block-range -target 192.168.1.0/24 -direction out -action block -port 443 -protocol tcp
+
+# List every wfpctl filter across all sub-layers, as JSON
+wfpctl.exe list -all -json</pre>
+
+  <footer>
+    Copyright (c) 2026 xRetia Labs ·
+    <a href="https://github.com/xRetia/wfpctl/blob/main/README.md">README</a> ·
+    <a href="https://github.com/xRetia/wfpctl/releases">Releases</a>
+  </footer>
+</main>
+</body>
+</html>

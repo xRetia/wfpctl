@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QDialog
 import wfpctl_gui.engine as _eng
 import wfpctl_gui.dialogs as _dlg
 import wfpctl_gui.app as _app
+import wfpctl_gui.i18n as _i18n
 
 
 class StubEngine:
@@ -55,19 +56,22 @@ def main() -> int:
 
     qapp = QApplication(sys.argv)
 
+    _i18n.set_language(_i18n.EN)
     win = _app.MainWindow()
+    win._switch_language(_i18n.EN)  # force English regardless of saved settings
     assert win.windowTitle().startswith("wfpctl"), win.windowTitle()
     assert not win.windowIcon().isNull(), "window icon missing"
 
     table = win._table
     assert table.columnCount() == 8, f"expected 8 columns, got {table.columnCount()}"
     headers = [table.horizontalHeaderItem(i).text() for i in range(8)]
-    assert headers[:2] == ["ID", "名称"], headers
-    assert "子层" in headers, headers
+    assert headers[:2] == ["ID", "Name"], headers
+    assert "Sublayer" in headers, headers
     assert win._filter_combo, "sublayer filter combo missing"
     assert win._filter_combo.count() >= 2, "filter combo should have default + all + sublayers"
+    assert win._filter_combo.itemText(0) == "Only wfpctl rules", win._filter_combo.itemText(0)
     assert table.rowCount() == 1, f"expected 1 row from stub, got {table.rowCount()}"
-    assert "规则数: 1" in win._status_label.text(), win._status_label.text()
+    assert "Rules: 1" in win._status_label.text(), win._status_label.text()
 
     # GUID column should be fixed-width, not stretch
     from PyQt6.QtWidgets import QHeaderView
@@ -78,10 +82,23 @@ def main() -> int:
     toolbar_actions = [a.text() for a in win.findChild(_app.QToolBar).actions()
                        if a.text()]
     assert len(toolbar_actions) == 8, f"expected 8 toolbar buttons, got {toolbar_actions}"
-    assert any("阻止" in s for s in toolbar_actions), toolbar_actions
-    assert any("允许" in s for s in toolbar_actions), toolbar_actions
-    assert any("导出" in s for s in toolbar_actions), toolbar_actions
-    assert any("导入" in s for s in toolbar_actions), toolbar_actions
+    assert any("Block" in s for s in toolbar_actions), toolbar_actions
+    assert any("Allow" in s for s in toolbar_actions), toolbar_actions
+    assert any("Export" in s for s in toolbar_actions), toolbar_actions
+    assert any("Import" in s for s in toolbar_actions), toolbar_actions
+
+    # language menu exists with two checkable actions
+    lang_actions = [a for a in win._lang_menu.actions()]
+    assert len(lang_actions) == 2, lang_actions
+    assert win._lang_act_en.isChecked(), "English should be default"
+
+    # switching to Chinese updates UI strings
+    win._switch_language(_i18n.ZH)
+    assert win._lang_act_zh.isChecked(), "Chinese should be checked after switch"
+    headers_zh = [table.horizontalHeaderItem(i).text() for i in range(8)]
+    assert headers_zh[:2] == ["ID", "名称"], headers_zh
+    assert win._filter_combo.itemText(0) == "仅 wfpctl 规则", win._filter_combo.itemText(0)
+    win._switch_language(_i18n.EN)
 
     add = _app.AddRuleDialog()
     vals = add.values()
@@ -92,6 +109,8 @@ def main() -> int:
 
     sub = _app.SublayersDialog(StubEngine())
     assert sub.table.columnCount() == 3, sub.table.columnCount()
+    sub_headers = [sub.table.horizontalHeaderItem(i).text() for i in range(3)]
+    assert sub_headers == ["Weight", "Name", "GUID"], sub_headers
 
     print("SMOKE OK")
     return 0

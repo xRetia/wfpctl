@@ -21,48 +21,50 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from wfpctl_gui.i18n import tr
+
 
 class AddRuleDialog(QDialog):
     def __init__(self, default_action: str = "block", parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("添加规则")
+        self.setWindowTitle(tr("add_rule_title"))
         self.setMinimumWidth(420)
 
         form = QFormLayout(self)
 
         self.name_edit = QLineEdit("wfpctl-rule")
-        form.addRow("规则名称:", self.name_edit)
+        form.addRow(tr("rule_name_label"), self.name_edit)
 
         self.target_edit = QLineEdit()
-        self.target_edit.setPlaceholderText("例如 192.168.1.0/24")
-        form.addRow("目标 IP/CIDR:", self.target_edit)
+        self.target_edit.setPlaceholderText(tr("target_ph"))
+        form.addRow(tr("target_label"), self.target_edit)
 
         self.port_edit = QLineEdit()
-        self.port_edit.setPlaceholderText("例如 80 或 80-443")
-        form.addRow("端口/区间:", self.port_edit)
+        self.port_edit.setPlaceholderText(tr("port_ph"))
+        form.addRow(tr("port_label"), self.port_edit)
 
         self.protocol_combo = QComboBox()
-        self.protocol_combo.addItems(["(任一)", "TCP", "UDP"])
-        form.addRow("协议:", self.protocol_combo)
+        self.protocol_combo.addItems([tr("proto_any"), "TCP", "UDP"])
+        form.addRow(tr("protocol_label"), self.protocol_combo)
 
         self.direction_combo = QComboBox()
-        self.direction_combo.addItems(["出站", "入站"])
-        form.addRow("方向:", self.direction_combo)
+        self.direction_combo.addItems([tr("dir_out"), tr("dir_in")])
+        form.addRow(tr("direction_label"), self.direction_combo)
 
         self.action_combo = QComboBox()
-        self.action_combo.addItems(["阻止", "允许"])
+        self.action_combo.addItems([tr("act_block"), tr("act_allow")])
         self.action_combo.setCurrentIndex(0 if default_action == "block" else 1)
-        form.addRow("动作:", self.action_combo)
+        form.addRow(tr("action_label"), self.action_combo)
 
         self.priority_combo = QComboBox()
-        self.priority_combo.addItems(["最高", "最低", "自定义"])
-        form.addRow("优先级:", self.priority_combo)
+        self.priority_combo.addItems([tr("prio_highest"), tr("prio_lowest"), tr("prio_custom")])
+        form.addRow(tr("priority_label"), self.priority_combo)
 
         self.weight_spin = QSpinBox()
         self.weight_spin.setRange(0, 2147483647)
         self.weight_spin.setValue(0)
         self._weight_row = form.rowCount()
-        form.addRow("自定义权重:", self.weight_spin)
+        form.addRow(tr("weight_label"), self.weight_spin)
         self._update_weight_visibility()
 
         self.priority_combo.currentIndexChanged.connect(self._update_weight_visibility)
@@ -83,23 +85,23 @@ class AddRuleDialog(QDialog):
 
     def _on_accept(self) -> None:
         if not self.target_edit.text().strip():
-            QMessageBox.warning(self, "验证错误", "目标 IP/CIDR 不能为空")
+            QMessageBox.warning(self, tr("validate_title"), tr("target_required"))
             return
         self.accept()
 
     def values(self) -> dict[str, str | int]:
-        proto_map = {"(任一)": "", "TCP": "tcp", "UDP": "udp"}
-        prio_map = {"最高": "highest", "最低": "lowest", "自定义": "custom"}
-        act_map = {"阻止": "block", "允许": "allow"}
-        dir_map = {"出站": "out", "入站": "in"}
+        proto_map = ["", "tcp", "udp"]
+        prio_map = ["highest", "lowest", "custom"]
+        act_map = ["block", "allow"]
+        dir_map = ["out", "in"]
         return {
             "name": self.name_edit.text().strip() or "wfpctl-rule",
             "target": self.target_edit.text().strip(),
             "port": self.port_edit.text().strip(),
-            "protocol": proto_map.get(self.protocol_combo.currentText(), ""),
-            "direction": dir_map.get(self.direction_combo.currentText(), "out"),
-            "action": act_map.get(self.action_combo.currentText(), "block"),
-            "priority": prio_map.get(self.priority_combo.currentText(), "highest"),
+            "protocol": proto_map[self.protocol_combo.currentIndex()],
+            "direction": dir_map[self.direction_combo.currentIndex()],
+            "action": act_map[self.action_combo.currentIndex()],
+            "priority": prio_map[self.priority_combo.currentIndex()],
             "weight": self.weight_spin.value(),
         }
 
@@ -108,14 +110,14 @@ class SublayersDialog(QDialog):
     def __init__(self, engine: object, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._engine = engine
-        self.setWindowTitle("子层信息")
+        self.setWindowTitle(tr("sublayer_info"))
         self.setMinimumSize(650, 400)
 
         layout = QVBoxLayout(self)
 
         self.table = QTableWidget()
         self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["权重", "名称", "GUID"])
+        self.table.setHorizontalHeaderLabels([tr("col_weight"), tr("col_name"), tr("col_guid")])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -130,14 +132,14 @@ class SublayersDialog(QDialog):
 
         btn_layout = QHBoxLayout()
 
-        del_btn = QPushButton(" 删除选中子层")
+        del_btn = QPushButton(tr("del_sublayer_btn"))
         del_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
         del_btn.clicked.connect(self._delete_selected)
         btn_layout.addWidget(del_btn)
 
         btn_layout.addStretch()
 
-        close_btn = QPushButton(" 关闭")
+        close_btn = QPushButton(tr("close_btn"))
         close_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton))
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
@@ -170,8 +172,8 @@ class SublayersDialog(QDialog):
             return
         confirm = QMessageBox.question(
             self,
-            "确认删除",
-            f"确定要删除选中的 {len(rows)} 个子层吗？\n这将移除子层中的所有规则。",
+            tr("confirm_delete_sub_title"),
+            tr("confirm_delete_sub_msg").format(n=len(rows)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
@@ -181,25 +183,25 @@ class SublayersDialog(QDialog):
             if guid:
                 ok, msg = self._engine.delete_sublayer(guid.text())
                 if not ok:
-                    QMessageBox.critical(self, "删除失败", msg)
+                    QMessageBox.critical(self, tr("delete_fail_title"), msg)
         self._load()
 
 
 class AboutDialog(QDialog):
     def __init__(self, engine: object, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("关于 wfpctl")
+        self.setWindowTitle(tr("about_title"))
         self.setFixedSize(420, 200)
 
         layout = QVBoxLayout(self)
 
-        title = QLabel("wfpctl - Windows 防火墙控制台")
+        title = QLabel(tr("about_main_title"))
         title.setStyleSheet("font-size: 14px; font-weight: bold;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         version = engine.version()
-        ver_label = QLabel(f"引擎版本: {version}")
+        ver_label = QLabel(tr("engine_ver").format(ver=version))
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(ver_label)
 

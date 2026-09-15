@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from wfpctl_gui.i18n import tr
+
 
 class Engine:
     def __init__(self) -> None:
@@ -62,9 +64,9 @@ class Engine:
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(f"命令超时: wfpctl {' '.join(args)}") from exc
+            raise RuntimeError(tr("timeout_msg").format(cmd=f"wfpctl {' '.join(args)}")) from exc
         except Exception as exc:
-            raise RuntimeError(f"执行失败: {exc}") from exc
+            raise RuntimeError(tr("exec_fail_msg").format(err=exc)) from exc
 
     def version(self) -> str:
         try:
@@ -139,7 +141,7 @@ class Engine:
             r = self.cmd(*args)
             output = (r.stdout or "") + (r.stderr or "")
             if r.returncode != 0:
-                raise RuntimeError(output.strip() or f"退出码 {r.returncode}")
+                raise RuntimeError(output.strip() or tr("exit_code").format(rc=r.returncode))
             return output.strip()
         except RuntimeError:
             raise
@@ -151,7 +153,7 @@ class Engine:
             r = self.cmd("delete", "-key", key)
             output = (r.stdout or "") + (r.stderr or "")
             ok = r.returncode == 0
-            return ok, output.strip() if ok else output.strip() or f"退出码 {r.returncode}"
+            return ok, output.strip() if ok else output.strip() or tr("exit_code").format(rc=r.returncode)
         except Exception as exc:
             return False, str(exc)
 
@@ -163,7 +165,7 @@ class Engine:
             r = self.cmd(*args)
             output = (r.stdout or "") + (r.stderr or "")
             ok = r.returncode == 0
-            return ok, output.strip() if ok else output.strip() or f"退出码 {r.returncode}"
+            return ok, output.strip() if ok else output.strip() or tr("exit_code").format(rc=r.returncode)
         except Exception as exc:
             return False, str(exc)
 
@@ -199,10 +201,10 @@ class Engine:
         with open(path, "r", encoding="utf-8") as fh:
             doc = json.load(fh)
         if not isinstance(doc, dict) or doc.get("format") != "wfpctl-rules":
-            raise ValueError("不是 wfpctl 规则文件")
+            raise ValueError(tr("not_rules_file"))
         rules = doc.get("rules")
         if not isinstance(rules, list):
-            raise ValueError("规则文件中缺少 rules 列表")
+            raise ValueError(tr("missing_rules_list"))
 
         existing = {self._signature(r) for r in self.list_rules()}
 
@@ -214,7 +216,7 @@ class Engine:
         for i, r in enumerate(rules, 1):
             if not isinstance(r, dict):
                 failed += 1
-                errors.append(f"第 {i} 条: 记录格式无效")
+                errors.append(tr("invalid_record").format(i=i))
                 continue
             sig = self._signature(r)
             if sig in existing:
@@ -248,7 +250,7 @@ class Engine:
                 existing.add(sig)
             except Exception as exc:
                 failed += 1
-                errors.append(f"第 {i} 条: {exc}")
+                errors.append(tr("record_error").format(i=i, msg=exc))
 
         result: dict[str, int] = {"added": added, "skipped": skipped, "failed": failed}
         if errors:

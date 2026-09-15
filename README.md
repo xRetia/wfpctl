@@ -9,8 +9,9 @@ Copyright (c) 2026 xRetia Labs — <https://github.com/xRetia/wfpctl>
 
 - Pure user-mode: talks to `fwpuclnt.dll` directly (no kernel driver, no service).
 - `add` / `delete` / `list` / `sublayers` sub-commands.
-- Builds for **amd64** and **386** (x64 and x86 Windows).
-- Optional **PyQt6 GUI** (see GUI section below).
+- `list` filters by sub-layer (`-sublayer`), shows every provider filter (`-all`), and outputs JSON (`-json`).
+- Builds for **amd64**, **386** and **arm64** (x64, x86 and Windows on ARM).
+- Optional **PyQt6 GUI** with English / 中文 language switch (see GUI section below).
 - Persistent provider + sub-layer and persistent filters (survive reboot).
 
 ## Build
@@ -25,6 +26,8 @@ $env:GOARCH='amd64'; go build -trimpath -ldflags "-s -w -X main.versionStr=$(Get
 # 386
 $env:GOARCH='386'; go build -trimpath -ldflags "-s -w -X main.versionStr=$(Get-Content VERSION)" -o wfpctl32.exe .
 ```
+
+The release workflow also builds an **arm64** variant (`wfpctl-arm64.exe`) for Windows on ARM.
 
 Run tests / vet:
 
@@ -42,8 +45,8 @@ wfpctl add      [-name <name>] -target <ip|cidr> [-direction in|out] [-action bl
                 [-protocol tcp|udp|<number>] [-port <port|range>] [-priority highest|lowest|custom]
                 [-weight <uint64>] [-sublayer high|default]
 wfpctl delete   -key <filter-GUID>
-wfpctl list
-wfpctl sublayers [-delete [-key <sub-layer-GUID>]]
+wfpctl list     [-json] [-all] [-sublayer <GUID|name>]
+wfpctl sublayers [-json] [-delete [-key <sub-layer-GUID>]]
 wfpctl version
 wfpctl help
 ```
@@ -110,14 +113,18 @@ wfpctl.exe delete -key 203AB74A-63CE-4A3B-BF4C-8B7AE6AC21E4
 `list` prints only the filters owned by the `wfpctl Provider`:
 
 ```
-67939          subnet-test              ALE_AUTH_RECV_ACCEPT_V4  allow  18446744073709551615 {0335BED5-05BD-4CAD-8C30-1229AC1E4BE3}
-67938          cidr-test                ALE_AUTH_CONNECT_V4      block  18446744073709551615 {6C1E3F65-E5F9-4D7F-B6D4-A193285D259B}
-67937          v6-test                  ALE_AUTH_RECV_ACCEPT_V6  allow  18446744073709551615 {791E7927-D8DA-4195-8376-867C4E6A16F7}
+SUBLAYER           ID     NAME          DIRECTION  ACTION  WEIGHT  GUID
+wfpctl SubLayer    67939  subnet-test   in         allow   18446744073709551615 {0335BED5-05BD-4CAD-8C30-1229AC1E4BE3}
 ```
+
+- `-all` also lists filters in other sub-layers (still restricted to the `wfpctl Provider`).
+- `-sublayer <GUID|name>` lists the provider's filters in one specific sub-layer, whether it is
+  wfpctl's own sub-layer or a built-in one. The selector may be a full GUID or an exact (case-insensitive)
+  sub-layer name.
 
 `weight` is the filter's weight inside its sub-layer (`18446744073709551615` = `math.MaxUint64` for `highest`).
 
-Add `-json` for structured output (consumed by the GUI):
+Add `-json` for structured output (consumed by the GUI), which adds `sublayer`/`protocol`/`port`/`target`:
 
 ```json
 [
@@ -127,6 +134,7 @@ Add `-json` for structured output (consumed by the GUI):
     "direction": "in",
     "action": "allow",
     "layer": "ALE_AUTH_RECV_ACCEPT_V4",
+    "sublayer": "wfpctl SubLayer",
     "weight": "18446744073709551615",
     "target": "10.0.0.0/24",
     "port": "",
@@ -141,7 +149,8 @@ Add `-json` for structured output (consumed by the GUI):
 `sublayers` enumerates every sub-layer sorted descending by weight, so you can see who holds the high
 weights on a given machine. The `GUID` column shows the bare sub-layer key (no braces), ready to copy into
 `sublayers -delete -key`. Entries with weight `>= 32768` (at or above the built-in
-`FWPM_SUBLAYER_UNIVERSAL` sub-layer) are marked with a trailing `*`:
+`FWPM_SUBLAYER_UNIVERSAL` sub-layer) are marked with a trailing `*`. Add `-json` for a structured
+`[{weight, name, key}, ...]` list:
 
 ```
 WEIGHT  NAME                     GUID
@@ -203,11 +212,20 @@ sub-layer, only the sub-layer and its filters are removed (the provider stays).
 
 An optional PyQt6 GUI is available in `gui/`. It calls the CLI backend and provides:
 
-- Toolbar with icon buttons: block / allow / delete / refresh / sublayers / uninstall
+- Toolbar with icon buttons: block / allow / delete / refresh / export / import / sublayers / uninstall
 - Rule table with right-click context menu (delete, copy GUID, refresh)
+- Sublayer filter drop-down: show only wfpctl rules, all sublayers, or a specific sublayer
+- Rule table columns for ID / name / direction / action / layer / sublayer / weight / GUID
 - Add-rule dialog with fields for name, target, port, protocol, direction, action, priority
+- Export / import rules as JSON
 - Sublayer viewer with delete support
 - Status bar with rule count and operation feedback
+- **Bilingual UI** — English (default) and Chinese (中文). The language is switched via the
+  **Language / 语言** menu and persists across launches.
+
+| English | 中文 |
+| --- | --- |
+| <img src="gui/screenshot-en.png" alt="wfpctl GUI (English)" width="480"/> | <img src="gui/screenshot-zh.png" alt="wfpctl GUI (中文)" width="480"/> |
 
 Build from `gui/`:
 
